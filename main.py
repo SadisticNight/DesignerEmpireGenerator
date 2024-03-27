@@ -33,41 +33,41 @@ ultima_posicion = list(posicion_usuario)
 mapa = np.full((NUM_CELDAS, NUM_CELDAS), _A)
 edificio_seleccionado = _A
 
+def actualizar_seleccion():
+    global tamanio_cursor, edificio_seleccionado
+    if edificio_seleccionado is not None:
+        tamanio_cursor = edificios[edificio_seleccionado].tamanio
+    else:
+        tamanio_cursor = (1, 1)
+
 def dibujar_celda(fila, columna, atributo):
     tamanio_edificio = atributo.tamanio
-    if tamanio_edificio == [2, 2]:
-        coordenadas = [(0, 0), (1, 0), (0, 1), (1, 1)]
-        for offset_x, offset_y in coordenadas:
-            x = (columna + offset_x) * TAMANO_CELDA
-            y = (fila + offset_y) * TAMANO_CELDA
-            rect = pygame.Rect(x, y, TAMANO_CELDA, TAMANO_CELDA)
-            pygame.draw.rect(ventana, atributo.color, rect)
-    else:
-        for f in range(tamanio_edificio[0]):
-            for c in range(tamanio_edificio[1]):
-                x = (columna + c) * TAMANO_CELDA
-                y = (fila + f) * TAMANO_CELDA
-                rect = pygame.Rect(x, y, TAMANO_CELDA, TAMANO_CELDA)
-                pygame.draw.rect(ventana, atributo.color, rect)
+    if atributo.color == VERDE:  # Si el atributo es el cursor
+        rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
+    else:  # Si el atributo es un edificio
+        if tamanio_edificio == [2, 2]:
+            rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * (tamanio_edificio[0] - 1), TAMANO_CELDA * (tamanio_edificio[1] - 1))
+        if tamanio_edificio == [1, 1]:
+            rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
+    pygame.draw.rect(ventana, atributo.color, rect, 0)
+
 
 def dibujar_cuadricula():
+    global tamanio_cursor
     ventana.fill(BLANCO)
+    actualizar_seleccion()
+    
+    # Dibujar todos los edificios primero
     for fila in range(NUM_CELDAS):
         for columna in range(NUM_CELDAS):
-            if edificio_seleccionado is not _A:
-                tamanio_edificio = edificios[edificio_seleccionado].tamanio
-                atributo_edificio = Atributo(Atributo.tamanio)
+            if mapa[fila][columna] != _A:
+                atributo_edificio = edificios[mapa[fila][columna]]
                 dibujar_celda(fila, columna, atributo_edificio)
-    if edificio_seleccionado is not _A:
-        tamanio_edificio = edificios[edificio_seleccionado].tamanio
-        atributo_cursor = Atributo(VERDE, 0, 0, 0, 0, 0, 0, _A, 0, 0, tamanio_edificio)
-        dibujar_celda(posicion_usuario[0], posicion_usuario[1], atributo_cursor)
-    else:
-        dibujar_celda(posicion_usuario[0], posicion_usuario[1], Atributo(VERDE, 0, 0, 0, 0, 0, 0, _A, 0, 0, (1, 1)))
+
+    # Dibujar el cursor del usuario
+    dibujar_celda(posicion_usuario[0], posicion_usuario[1], Atributo(VERDE, 0, 0, 0, 0, 0, 0, None, 0, 0, list(tamanio_cursor)))
 
 
-def actualizar_seleccion():
-     global edificio_seleccionado
 
 def actualizar_pantalla():
     dibujar_cuadricula()
@@ -152,15 +152,15 @@ while True:
                                 for f in range(tamanio_edificio[0]):
                                     for c in range(tamanio_edificio[1]):
                                         mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] = edificio_seleccionado
+                                        with open('celdas.pkl', 'rb') as file:
+                                            celdas_data = pickle.load(file)
+                                        for celda in celdas_data['celdas']:
+                                            if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
+                                                celda['edificio'] = edificio_seleccionado
+                                                break
+                                        with open('celdas.pkl', 'wb') as file:
+                                            pickle.dump(celdas_data, file)
                                 print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: ({posicion_usuario[0]}, {posicion_usuario[1]}), ({posicion_usuario[0]+1}, {posicion_usuario[1]}), ({posicion_usuario[0]}, {posicion_usuario[1]+1}), ({posicion_usuario[0]+1}, {posicion_usuario[1]+1})")
-                                with open('celdas.pkl', 'rb') as file:
-                                    celdas_data = pickle.load(file)
-                                for celda in celdas_data['celdas']:
-                                    if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
-                                        celda['edificio'] = edificio_seleccionado
-                                        break
-                                with open('celdas.pkl', 'wb') as file:
-                                    pickle.dump(celdas_data, file)
                             else:
                                 print('No se puede colocar el edificio aquí')
                     else:
