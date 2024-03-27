@@ -7,7 +7,9 @@ def generar_datos():
             celda = {
                 "x": x,
                 "y": y,
+                "hash":"",
                 "edificio": "",
+                "tipo":"",
                 "atributos": {
                     "energia": 0,
                     "agua": 0,

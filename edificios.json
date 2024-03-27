@@ -1,15 +1,15 @@
 {
     "suelo": {"color": [128, 128, 128], "energia": 0, "agua": 0, "basura": 0, "comida": 0, "empleos": 0, "residentes": 0, "tipo": "suelo", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "residencia": {"color": [255, 20, 147], "energia": -77, "agua": -124, "basura": -50, "comida": -57, "empleos": 0, "residentes": 3194, "tipo": "residencia", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "taller_togas": {"color": [0, 0, 255], "energia": -95, "agua": -83, "basura": -61, "comida": -70, "empleos": 2040, "residentes": 0, "tipo": "comercio", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "herreria": {"color": [255, 255, 0], "energia": -48, "agua": -42, "basura": -33, "comida": -36, "empleos": 2700, "residentes": 0, "tipo": "industria", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "decoracion": {"color": [0, 100, 0], "energia": 0, "agua": 0, "basura": 0, "comida": 0, "empleos": 0, "residentes": 0, "tipo": "decoracion", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "lecheria": {"color": [165, 42, 42], "energia": -30, "agua": -32, "basura": -23, "comida": 4000, "empleos": 162, "residentes": 0, "tipo": "industria", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "depuradora": {"color": [0, 0, 0], "energia": -60, "agua": -70, "basura": 40000, "comida": -60, "empleos": 501, "residentes": 0, "tipo": "industria", "felicidad": 0, "ambiente": 0, "tamanio": [2, 2]},
-    "agua": {"color": [0, 255, 255], "energia": -60, "agua": 40000, "basura": -40, "comida": -60, "empleos": 501, "residentes": 0, "tipo": "industria", "felicidad": 0, "ambiente": 0, "tamanio": [2, 2]},
-    "refineria": {"color": [255, 0, 255], "energia": 10000, "agua": -20, "basura": -40, "comida": -23, "empleos": 126, "residentes": 0, "tipo": "industria", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "policia": {"color": [0, 0, 128], "energia": -68, "agua": -62, "basura": -68, "comida": -49, "empleos": 210, "residentes": 0, "tipo": "comercio", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "bombero": {"color": [255, 0, 0], "energia": -43, "agua": -40, "basura": -43, "comida": -32, "empleos": 120, "residentes": 0, "tipo": "comercio", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "colegio": {"color": [128, 0, 128], "energia": -35, "agua": -32, "basura": -35, "comida": -27, "empleos": 90, "residentes": 0, "tipo": "comercio", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]},
-    "hospital": {"color": [255, 165, 0], "energia": -14, "agua": -14, "basura": -14, "comida": -13, "empleos": 15, "residentes": 0, "tipo": "comercio", "felicidad": 0, "ambiente": 0, "tamanio": [1, 1]}
+    "residencia": {"color": [255, 20, 147], "energia": -77, "agua": -124, "basura": -50, "comida": -57, "empleos": 0, "residentes": 3092, "tipo": "residencia", "felicidad": -93, "ambiente": -55, "tamanio": [1, 1]},
+    "taller_togas": {"color": [0, 0, 255], "energia": -95, "agua": -83, "basura": -61, "comida": -70, "empleos": 1891, "residentes": 0, "tipo": "comercio", "felicidad": -121, "ambiente": -83, "tamanio": [1, 1]},
+    "herreria": {"color": [255, 255, 0], "energia": -48, "agua": -42, "basura": -33, "comida": -36, "empleos": 2613, "residentes": 0, "tipo": "industria", "felicidad": -57, "ambiente": -42, "tamanio": [1, 1]},
+    "decoracion": {"color": [0, 100, 0], "energia": 0, "agua": 0, "basura": 0, "comida": 0, "empleos": 0, "residentes": 0, "tipo": "decoracion", "felicidad": 6600, "ambiente": 10000, "tamanio": [1, 1]},
+    "lecheria": {"color": [165, 42, 42], "energia": -30, "agua": -32, "basura": -23, "comida": 4000, "empleos": 165, "residentes": 0, "tipo": "industria", "felicidad": 1022, "ambiente": 22, "tamanio": [1, 1]},
+    "depuradora": {"color": [0, 0, 0], "energia": -60, "agua": -70, "basura": 40000, "comida": -60, "empleos": 465, "residentes": 0, "tipo": "industria", "felicidad": -118, "ambiente": -119, "tamanio": [2, 2]},
+    "agua": {"color": [0, 255, 255], "energia": -60, "agua": 40000, "basura": -40, "comida": -60, "empleos": 503, "residentes": 0, "tipo": "industria", "felicidad": -25, "ambiente": -25, "tamanio": [2, 2]},
+    "refineria": {"color": [255, 0, 255], "energia": 10000, "agua": -20, "basura": -40, "comida": -23, "empleos": 124, "residentes": 0, "tipo": "industria", "felicidad": -23, "ambiente": -22, "tamanio": [1, 1]},
+    "policia": {"color": [0, 0, 128], "energia": -68, "agua": -62, "basura": -68, "comida": -49, "empleos": 216, "residentes": 0, "tipo": "comercio", "felicidad": 1153, "ambiente": -80, "tamanio": [1, 1]},
+    "bombero": {"color": [255, 0, 0], "energia": -43, "agua": -40, "basura": -43, "comida": -32, "empleos": 126, "residentes": 0, "tipo": "comercio", "felicidad": 672, "ambiente": -75, "tamanio": [1, 1]},
+    "colegio": {"color": [128, 0, 128], "energia": -35, "agua": -32, "basura": -35, "comida": -27, "empleos": 96, "residentes": 0, "tipo": "comercio", "felicidad": 513, "ambiente": -40, "tamanio": [1, 1]},
+    "hospital": {"color": [255, 165, 0], "energia": -14, "agua": -14, "basura": -14, "comida": -13, "empleos": 16, "residentes": 0, "tipo": "comercio", "felicidad": 87, "ambiente": -15, "tamanio": [1, 1]}
 }

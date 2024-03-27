@@ -7,7 +7,9 @@ def generar_json():
             celda = {
                 "x": x,
                 "y": y,
-                "edificio": "",  # No es un atributo, esta en edificios.py
+                "hash":"",
+                "edificio": "",
+                "tipo":"",
                 "atributos": {
                     "energia": 0,
                     "agua": 0,
