@@ -1,0 +1,19 @@
+
+python -m venv venv
+py -3.12 -m venv venv
+venv\Scripts\activate
+
+python -m pip install --upgrade --force-reinstall pip
+python -m pip install --upgrade --force-reinstall pygame
+python -m pip install --upgrade --force-reinstall numpy
+
+py -3.12 main.py
+python main.py
+
+
+menu.py: Implementa un menú para seleccionar edificios.
+edificios.py: Define la estructura de datos para los atributos de los edificios y carga la información de los edificios desde un archivo JSON.
+edificios.json: Contiene la información de los edificios, como color, recursos consumidos/producidos, empleos, residentes, tipo, impacto en la felicidad y el ambiente, y tamaño.
+celdas.json: Define la matriz de celdas del mapa con sus atributos (energía, agua, basura, comida, empleos, residentes, felicidad y ambiente).
+atributos.py: Define la clase Atributo que representa los atributos de un edificio.
+main.py: Implementa el juego básico de construcción de ciudades con las funcionalidades básicas.
