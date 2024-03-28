@@ -1,6 +1,6 @@
 from enum import Enum
 from atributos import Atributo
-import pickle  # Importamos pickle en lugar de json
+import pickle
 
 class TipoEdificio(Enum):
     COMERCIO = "comercio"

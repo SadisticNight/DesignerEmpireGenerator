@@ -192,7 +192,7 @@ while True:
                                 puede_colocar = False
                             if puede_colocar:
                                 hash_edificio = generar_hash(edificio_seleccionado)
-                                atributos_edificio = edificios[edificio_seleccionado].to_dict()  # Obtén los atributos del edificio
+                                atributos_edificio = edificios[edificio_seleccionado].to_dict()
                                 mapa[posicion_usuario[0]][posicion_usuario[1]] = edificio_seleccionado
                                 with open(_C, 'rb') as file:
                                     celdas_data = pickle.load(file)
