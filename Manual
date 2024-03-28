@@ -1,5 +1,11 @@
 Manual de Juego
 
+Descargue el .zip
+Descomprimalo y abra su carpeta en VSCode (o lo que sea que utilice)
+
+Instale los requerimientos.
+pip install -r requirements.txt
+
 Ejecuta main.py para iniciar.
 
 Teclas:
