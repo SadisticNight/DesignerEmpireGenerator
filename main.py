@@ -4,7 +4,7 @@ from edificios import edificios
 from atributos import Atributo
 from generar_pickle import generar_datos
 import os,pickle,hashlib,time
-from condiciones import condicion_suelo
+from condiciones import condiciones
 
 TECLA_IZQUIERDA = pygame.K_LEFT
 TECLA_DERECHA = pygame.K_RIGHT
@@ -151,7 +151,7 @@ while True:
                 if edificio_seleccionado is _N:
                     print('Debe seleccionar un edificio')
                 else:
-                    if condicion_suelo(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
+                    if condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
                         tamanio_edificio = edificios[edificio_seleccionado].tamanio
                         if tamanio_edificio == [2, 2]:
                             if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:

@@ -41,3 +41,32 @@ def condicion_suelo(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios
                 return False
 
     return True
+
+def condicion_agua(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
+    x, y = posicion
+
+    # Verificar si el edificio es 'agua'
+    if edificio_seleccionado == 'agua':
+        # Verificar si hay al menos un edificio de tipo 'decoracion' en las celdas vecinas
+        tiene_vecino_decoracion = False
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < NUM_CELDAS and 0 <= ny < NUM_CELDAS and mapa[nx][ny] is not None and mapa[nx][ny] == 'decoracion':
+                    tiene_vecino_decoracion = True
+                    break
+            if tiene_vecino_decoracion:
+                break
+        if not tiene_vecino_decoracion:
+            print("Debe ubicarse al lado o en la esquina de una decoración")
+            return False
+    else:
+        pass
+
+    return True
+
+def condiciones(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
+    if edificio_seleccionado == 'agua':
+        return condicion_agua(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios)
+    else:
+        return condicion_suelo(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios)
