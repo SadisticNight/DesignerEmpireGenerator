@@ -1,0 +1,16 @@
+Manual de Juego
+
+Teclas:
+
+Flechas: Moverse en el mapa.
+n: Muestra las coordenadas del edificio seleccionado.
+m: Abre o cierra el menú.
+Enter: Selecciona un edificio del menú.
++: Coloca el edificio seleccionado en el mapa.
+-: Elimina el edificio en la posición actual.
+Condiciones:
+
+suelo: No puede colocarse en los bordes del mapa ni cerca de otros suelos.
+Otros edificios: Deben ubicarse al lado o en la esquina de un suelo.
+agua: Debe ubicarse al lado o en la esquina de una decoración.
+El espacio debe estar disponible para colocar cualquier edificio. Las condiciones pueden variar según el tipo de edificio.

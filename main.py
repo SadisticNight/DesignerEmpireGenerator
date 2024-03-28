@@ -92,7 +92,6 @@ dibujar_cuadricula()
 pygame.display.flip()
 
 
-
 while True:
     teclas_presionadas = pygame.key.get_pressed()
     ultima_posicion = list(posicion_usuario)
