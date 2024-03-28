@@ -4,7 +4,8 @@ from edificios import edificios
 from atributos import Atributo
 from generar_pickle import generar_datos
 import os,pickle,hashlib,time
-from condiciones import condiciones
+from condiciones import Condiciones
+from areas import Area
 
 TECLA_IZQUIERDA = pygame.K_LEFT
 TECLA_DERECHA = pygame.K_RIGHT
@@ -147,10 +148,15 @@ while True:
                 print(f"{edificio_seleccionado} seleccionado")
 
             if evento.key in (pygame.K_KP_PLUS, pygame.K_PLUS):
-                if edificio_seleccionado is _N:
+                if edificio_seleccionado is _N: 
                     print('Debe seleccionar un edificio')
                 else:
-                    if condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
+                    if Condiciones.condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
+                        with open(_C, 'rb') as file:
+                            celdas_data = pickle.load(file)
+                        Area.actualizar_celdas(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios, celdas_data)
+                        with open(_C, 'wb') as file:
+                            pickle.dump(celdas_data, file)
                         tamanio_edificio = edificios[edificio_seleccionado].tamanio
                         if tamanio_edificio == [2, 2]:
                             if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:
