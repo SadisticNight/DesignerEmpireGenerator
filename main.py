@@ -4,6 +4,7 @@ from edificios import edificios
 from atributos import Atributo
 from generar_pickle import generar_datos
 import os,pickle,hashlib,time
+from condiciones import condicion_suelo
 
 TECLA_IZQUIERDA = pygame.K_LEFT
 TECLA_DERECHA = pygame.K_RIGHT
@@ -22,14 +23,14 @@ _Y='edificio'
 _D='celdas'
 _H='hash'
 _C='celdas.pkl'
-_S='ambiente'
-_E='felicidad'
-_U='residentes'
-_B='empleos'
-_I='comida'
-_R='basura'
-_T='agua'
 _A='energia'
+_T='agua'
+_R='basura'
+_I='comida'
+_B='empleos'
+_U='residentes'
+_E='felicidad'
+_S='ambiente'
 _V='atributos'
 _Z='tipo'
 
@@ -150,62 +151,63 @@ while True:
                 if edificio_seleccionado is _N:
                     print('Debe seleccionar un edificio')
                 else:
-                    tamanio_edificio = edificios[edificio_seleccionado].tamanio
-                    if tamanio_edificio == [2, 2]:
-                        if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:
-                            print(_F)
-                        else:
-                            puede_colocar = True
-                            for f in range(tamanio_edificio[0]):
-                                for c in range(tamanio_edificio[1]):
-                                    if mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] is not _N:
-                                        puede_colocar = False
-                                        break
-                                if not puede_colocar:
-                                    break
-                            if puede_colocar:
-                                hash_edificio = generar_hash(edificio_seleccionado)
-                                atributos_edificio = edificios[edificio_seleccionado].to_dict()
+                    if condicion_suelo(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
+                        tamanio_edificio = edificios[edificio_seleccionado].tamanio
+                        if tamanio_edificio == [2, 2]:
+                            if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:
+                                print(_F)
+                            else:
+                                puede_colocar = True
                                 for f in range(tamanio_edificio[0]):
                                     for c in range(tamanio_edificio[1]):
-                                        mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] = edificio_seleccionado
-                                        with open(_C, 'rb') as file:
-                                            celdas_data = pickle.load(file)
-                                        for celda in celdas_data[_D]:
-                                            if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
-                                                celda[_Y] = edificio_seleccionado
-                                                celda[_H] = hash_edificio
-                                                celda[_Z] = atributos_edificio[_Z].value
-                                                celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]}
-                                                break
-                                        with open(_C, 'wb') as file:
-                                            pickle.dump(celdas_data, file)
-                                print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: ({posicion_usuario[0]}, {posicion_usuario[1]}), ({posicion_usuario[0]+1}, {posicion_usuario[1]}), ({posicion_usuario[0]}, {posicion_usuario[1]+1}), ({posicion_usuario[0]+1}, {posicion_usuario[1]+1})")
+                                        if mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] is not _N:
+                                            puede_colocar = False
+                                            break
+                                    if not puede_colocar:
+                                        break
+                                if puede_colocar:
+                                    hash_edificio = generar_hash(edificio_seleccionado)
+                                    atributos_edificio = edificios[edificio_seleccionado].to_dict()
+                                    for f in range(tamanio_edificio[0]):
+                                        for c in range(tamanio_edificio[1]):
+                                            mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] = edificio_seleccionado
+                                            with open(_C, 'rb') as file:
+                                                celdas_data = pickle.load(file)
+                                            for celda in celdas_data[_D]:
+                                                if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
+                                                    celda[_Y] = edificio_seleccionado
+                                                    celda[_H] = hash_edificio
+                                                    celda[_Z] = atributos_edificio[_Z].value
+                                                    celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]}
+                                                    break
+                                            with open(_C, 'wb') as file:
+                                                pickle.dump(celdas_data, file)
+                                    print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: ({posicion_usuario[0]}, {posicion_usuario[1]}), ({posicion_usuario[0]+1}, {posicion_usuario[1]}), ({posicion_usuario[0]}, {posicion_usuario[1]+1}), ({posicion_usuario[0]+1}, {posicion_usuario[1]+1})")
+                                else:
+                                    print(_F)
+                        else:
+                            # Para edificios de tamaño 1x1, aplicar la lógica anterior
+                            puede_colocar = True
+                            if mapa[posicion_usuario[0]][posicion_usuario[1]] is not _N:
+                                puede_colocar = False
+                            if puede_colocar:
+                                hash_edificio = generar_hash(edificio_seleccionado)
+                                atributos_edificio = edificios[edificio_seleccionado].to_dict()  # Obtén los atributos del edificio
+                                mapa[posicion_usuario[0]][posicion_usuario[1]] = edificio_seleccionado
+                                with open(_C, 'rb') as file:
+                                    celdas_data = pickle.load(file)
+                                for celda in celdas_data[_D]:
+                                    if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
+                                        celda[_Y] = edificio_seleccionado
+                                        celda[_H] = hash_edificio
+                                        celda[_Z] = atributos_edificio[_Z].value
+                                        celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]} 
+                                        break
+                                with open(_C, 'wb') as file:
+                                    pickle.dump(celdas_data, file)
+                                print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
                             else:
                                 print(_F)
-                    else:
-                        # Para edificios de tamaño 1x1, aplicar la lógica anterior
-                        puede_colocar = True
-                        if mapa[posicion_usuario[0]][posicion_usuario[1]] is not _N:
-                            puede_colocar = False
-                        if puede_colocar:
-                            hash_edificio = generar_hash(edificio_seleccionado)
-                            atributos_edificio = edificios[edificio_seleccionado].to_dict()  # Obtén los atributos del edificio
-                            mapa[posicion_usuario[0]][posicion_usuario[1]] = edificio_seleccionado
-                            with open(_C, 'rb') as file:
-                                celdas_data = pickle.load(file)
-                            for celda in celdas_data[_D]:
-                                if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
-                                    celda[_Y] = edificio_seleccionado
-                                    celda[_H] = hash_edificio
-                                    celda[_Z] = atributos_edificio[_Z].value
-                                    celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]} 
-                                    break
-                            with open(_C, 'wb') as file:
-                                pickle.dump(celdas_data, file)
-                            print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
-                        else:
-                            print(_F)
 
                 actualizar_pantalla()
 
