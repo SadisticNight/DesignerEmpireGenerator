@@ -152,11 +152,6 @@ while True:
                     print('Debe seleccionar un edificio')
                 else:
                     if Condiciones.condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
-                        with open(_C, 'rb') as file:
-                            celdas_data = pickle.load(file)
-                        Area.actualizar_celdas(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios, celdas_data)
-                        with open(_C, 'wb') as file:
-                            pickle.dump(celdas_data, file)
                         tamanio_edificio = edificios[edificio_seleccionado].tamanio
                         if tamanio_edificio == [2, 2]:
                             if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:
@@ -206,11 +201,14 @@ while True:
                                         celda[_Y] = edificio_seleccionado
                                         celda[_H] = hash_edificio
                                         celda[_Z] = atributos_edificio[_Z].value
-                                        celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]} 
+                                        for key in [_A, _T, _R, _I, _B, _U, _E, _S]:
+                                            celda[_V][key] += atributos_edificio[key]
                                         break
                                 with open(_C, 'wb') as file:
                                     pickle.dump(celdas_data, file)
                                 print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
+                                # Llamada a actualizar_celdas de la clase Area
+                                Area.actualizar_celdas(edificio_seleccionado, edificios)
                             else:
                                 print(_F)
 

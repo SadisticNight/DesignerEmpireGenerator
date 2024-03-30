@@ -99,8 +99,3 @@ class Condiciones:
             return Condiciones.condicion_agua(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios)
         else:
             return Condiciones.condicion_suelo(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios)
-        
-
-
-
-
