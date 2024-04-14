@@ -80,13 +80,10 @@ class Condiciones:
     
     @staticmethod
     def condicion_areas(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
-        match edificio_seleccionado:
-            case 'decoracion':
-                area = Area.area_decoracion(edificio_seleccionado, posicion)
-            case 'policia':
-                area = Area.zona_policia(edificio_seleccionado, posicion)
-            case _:
-                return True
+        area = Area.area_afectada_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
+        
+        if area is None:
+            return True  # Si la función no devuelve un área, asumimos que no necesita comprobación
 
         for x, y in area:
             if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
@@ -94,6 +91,7 @@ class Condiciones:
                 return False
 
         return True
+
 
     @staticmethod
     def condiciones(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):

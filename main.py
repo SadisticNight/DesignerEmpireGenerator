@@ -209,9 +209,10 @@ while True:
                                 print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
                                 # Llamada a actualizar_celdas de la clase Area
                                 Area.area_defecto(edificio_seleccionado, posicion_usuario)
-                                Area.area_policia(edificio_seleccionado, posicion_usuario)
                                 Area.actualizar_celdas(edificio_seleccionado, edificios)
                                 Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                if edificio_seleccionado in ['policia']:
+                                    Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario)
                             else:
                                 print(_F)
 
