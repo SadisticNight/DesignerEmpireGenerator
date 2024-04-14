@@ -81,17 +81,22 @@ class Condiciones:
     @staticmethod
     def condicion_areas(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
         area = Area.area_afectada_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
+        zona = Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
         
-        if area is None:
+        if area is None and zona is None:
             return True
 
         for x, y in area:
             if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
-                print("No se puede colocar el edificio aquí porque ya hay un edificio del mismo tipo en el área.")
+                print("Edificio existente en el área.")
+                return False
+
+        for x, y in zona:
+            if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
+                print("Edificio existente en el zona.")
                 return False
 
         return True
-
 
     @staticmethod
     def condiciones(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):

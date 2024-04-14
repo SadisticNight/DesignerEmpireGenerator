@@ -5,8 +5,6 @@ _C='celdas.pkl'
 _E='felicidad'
 _S='ambiente'
 _V='atributos'
-_D='decoracion'
-_P='policia'
 
 class Area:
     area_afectada = set()
@@ -16,10 +14,11 @@ class Area:
     max_radio_cubierto = 0 # Funciona para el radio del area cubierta de policia, escuela, bombero y hospital
     x_centro = 0
     y_centro = 0
+    max_efecto = 100
 
     @staticmethod
     def area_defecto(edificio_seleccionado, posicion_edificio):
-        if edificio_seleccionado not in [_D, _P]:
+        if edificio_seleccionado not in ['decoracion', 'policia', 'bombero', 'colegio', 'hospital']:
             posicion_edificio = tuple(posicion_edificio)
             Area.area_afectada.clear()
             Area.area_cubierta.clear()
@@ -31,10 +30,8 @@ class Area:
     @staticmethod
     def area_afectada_por_edificio(edificio_seleccionado, posicion_edificio, NUM_CELDAS=200):
         match edificio_seleccionado:
-            case 'decoracion':
+            case 'residencia' | 'taller_togas' | 'herreria' | 'decoracion' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
                 radio = 4
-            case 'policia':
-                radio = 5
             case _:
                 return
         Area.x_centro, Area.y_centro = posicion_edificio
@@ -46,15 +43,17 @@ class Area:
             for y in range(max(0, Area.y_centro - radio), min(NUM_CELDAS, Area.y_centro + radio + 1)):
                 if (x - Area.x_centro)**2 + (y - Area.y_centro)**2 <= radio**2:
                     Area.area_afectada.add((x, y))
-        print(f"El área afectada por {edificio_seleccionado} es: {Area.area_afectada}")
+        # print(f"El área afectada por {edificio_seleccionado} es: {Area.area_afectada}")
         return list(Area.area_afectada)
 
-    # Se encarga de zona_cubierta
+    # Se encarga de zona cubierta de servicios
     @staticmethod
     def zona_cubierta_por_edificio(edificio_seleccionado, posicion_edificio, NUM_CELDAS=200):
         match edificio_seleccionado:
-            case 'policia':
+            case 'policia' | 'bombero' | 'colegio':
                 radio = 13
+            case 'hospital':
+                radio = 11
             case _:
                 return
         posicion_edificio = tuple(posicion_edificio)
@@ -65,14 +64,13 @@ class Area:
             for y in range(max(0, Area.y_centro - radio), min(NUM_CELDAS, Area.y_centro + radio + 1)):
                 if (x - Area.x_centro)**2 + (y - Area.y_centro)**2 <= radio**2:
                     Area.area_cubierta.add((x, y))
-        print(f"La zona cubierta por {edificio_seleccionado} es: {Area.area_cubierta}")
-        print(f"El máximo rádio cubierto es: {Area.max_radio_cubierto}")
+        # print(f"La zona cubierta por {edificio_seleccionado} es: {Area.area_cubierta}")
         return list(Area.area_cubierta)
 
     # Area para Felicidad y Ambiente   
     @staticmethod
     def actualizar_celdas(edificio_seleccionado, edificios):
-        if edificio_seleccionado in [_D, _P]:
+        if edificio_seleccionado in ['decoracion', 'policia', 'bombero', 'colegio', 'hospital']:
             area_afectada_dict = {coord: _A for coord in Area.area_afectada}
             # print(f"Centro definido en: ({Area.x_centro}, {Area.y_centro})")
             with open(_C, 'rb') as file:
@@ -88,28 +86,35 @@ class Area:
                     celda[_V][_S] += round(factor_influencia * atributos_edificio[_S])
             with open(_C, 'wb') as file:
                 pickle.dump(celdas_data, file)
-            print(f"Área de {edificio_seleccionado} rellenada")
+            # print(f"Área de {edificio_seleccionado} rellenada")
 
     # Afecta a la zona que cubre la policia
     @staticmethod
     def servicios_cubiertos(edificio_seleccionado, edificios):
         area_cubierta_dict = {coord: None for coord in Area.area_cubierta}
-        # print(f"Centro definido en: ({Area.x_centro}, {Area.y_centro})")
+        with open(_C, 'rb') as file:
+            celdas_data = pickle.load(file)
+
         match edificio_seleccionado:
             case 'policia':
-                with open(_C, 'rb') as file:
-                    celdas_data = pickle.load(file)
-
-                for celda_coords in area_cubierta_dict:
-                    celda = next((c for c in celdas_data[_Q] if (c['x'], c['y']) == celda_coords), None)
-                    if celda is not None:
-                        distancia_influencia = ((celda['x'] - Area.x_centro)**2 + (celda['y'] - Area.y_centro)**2)**0.5
-                        factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / Area.max_radio_cubierto, 1))
-                        incremento = round(factor_influencia * 100)
-                        celda['servicios']['seguridad'] = min(100, max(celda['servicios'].get('seguridad', 0), incremento))
-                with open(_C, 'wb') as file:
-                    pickle.dump(celdas_data, file)
-                print(f"Zona de policía cubierta")
-
+                servicio = 'seguridad'
+            case 'bombero':
+                servicio = 'incendio'
+            case 'colegio':
+                servicio = 'educacion'
+            case 'hospital':
+                servicio = 'salud'
             case _:
-                True
+                return
+
+        for celda_coords in area_cubierta_dict:
+            celda = next((c for c in celdas_data[_Q] if (c['x'], c['y']) == celda_coords), None)
+            if celda is not None:
+                distancia_influencia = ((celda['x'] - Area.x_centro)**2 + (celda['y'] - Area.y_centro)**2)**0.5
+                factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / Area.max_radio_cubierto, 1))
+                incremento = round(factor_influencia * Area.max_efecto)
+                celda['servicios'][servicio] = min(Area.max_efecto, max(celda['servicios'].get(servicio, 0), incremento))
+
+        with open(_C, 'wb') as file:
+            pickle.dump(celdas_data, file)
+        # print(f"Zona de {edificio_seleccionado} cubierta")
