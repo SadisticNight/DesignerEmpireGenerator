@@ -21,7 +21,7 @@ BLANCO = 255, 255, 255
 _N = None
 _F='No se puede colocar el edificio aquí'
 _Y='edificio'
-_D='celdas'
+_Q='celdas'
 _H='hash'
 _C='celdas.pkl'
 _A='energia'
@@ -173,7 +173,7 @@ while True:
                                             mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] = edificio_seleccionado
                                             with open(_C, 'rb') as file:
                                                 celdas_data = pickle.load(file)
-                                            for celda in celdas_data[_D]:
+                                            for celda in celdas_data[_Q]:
                                                 if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
                                                     celda[_Y] = edificio_seleccionado
                                                     celda[_H] = hash_edificio
@@ -196,7 +196,7 @@ while True:
                                 mapa[posicion_usuario[0]][posicion_usuario[1]] = edificio_seleccionado
                                 with open(_C, 'rb') as file:
                                     celdas_data = pickle.load(file)
-                                for celda in celdas_data[_D]:
+                                for celda in celdas_data[_Q]:
                                     if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
                                         celda[_Y] = edificio_seleccionado
                                         celda[_H] = hash_edificio
@@ -222,7 +222,7 @@ while True:
                 if tamanio_cursor == [1, 1]:
                     with open(_C, 'rb') as file:
                         celdas_data = pickle.load(file)
-                    for celda in celdas_data[_D]:
+                    for celda in celdas_data[_Q]:
                         if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
                             if celda[_Y] != '':
                                 hash_a_eliminar = celda[_H]
@@ -232,7 +232,7 @@ while True:
                         print('No hay edificio en esta celda')
                         continue
 
-                    for celda in celdas_data[_D]:
+                    for celda in celdas_data[_Q]:
                         if celda[_H] == hash_a_eliminar:
                             celda[_Y] = ''
                             celda[_H] = ''

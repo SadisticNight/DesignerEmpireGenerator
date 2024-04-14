@@ -83,7 +83,7 @@ class Condiciones:
         area = Area.area_afectada_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
         
         if area is None:
-            return True  # Si la función no devuelve un área, asumimos que no necesita comprobación
+            return True
 
         for x, y in area:
             if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
