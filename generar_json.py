@@ -19,6 +19,12 @@ def generar_json():
                     "residentes": 0,
                     "felicidad": 0,
                     "ambiente": 0
+                },
+                "servicios": {
+                    "seguridad": 0,
+                    "incendio": 0,
+                    "salud": 0,
+                    "educacion": 0
                 }
             }
             datos["celdas"].append(celda)

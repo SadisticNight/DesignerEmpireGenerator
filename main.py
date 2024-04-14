@@ -208,7 +208,10 @@ while True:
                                     pickle.dump(celdas_data, file)
                                 print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
                                 # Llamada a actualizar_celdas de la clase Area
+                                Area.area_defecto(edificio_seleccionado, posicion_usuario)
+                                Area.area_policia(edificio_seleccionado, posicion_usuario)
                                 Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
                             else:
                                 print(_F)
 

@@ -7,6 +7,7 @@ class Condiciones:
     _F=False
     _D='decoracion'
     _A='agua'
+    _P='policia'
 
     @staticmethod
     def condicion_suelo(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
@@ -79,10 +80,13 @@ class Condiciones:
     
     @staticmethod
     def condicion_areas(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
-        if edificio_seleccionado == 'decoracion':
-            area = Area.area_decoracion(posicion)
-        else:
-            return True
+        match edificio_seleccionado:
+            case 'decoracion':
+                area = Area.area_decoracion(edificio_seleccionado, posicion)
+            case 'policia':
+                area = Area.zona_policia(edificio_seleccionado, posicion)
+            case _:
+                return True
 
         for x, y in area:
             if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
