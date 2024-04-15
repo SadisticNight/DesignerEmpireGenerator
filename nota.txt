@@ -1,12 +1,3 @@
-.-Corregir 2x2: Listo
-.-Vincular con celdas.json:
-    |- Primero debe crear el archivo celdas.json al abrir el menu.
-    |- Luego poner el nombre del edificio en la coordenada cuando se ubique.
-    |- Luego poner los atributos.
-    |- cuando cierre el programa, antes de cerrar debe cortar celdas.json y pegarlo en una carpeta de resultados con el nombre de celdas-fecha-hora.json
-.-Condición de agua:
-    |-Comprueba si hay una celda de decoracion desde el json
-        |-si no hay decoracion, que aparezca un mensaje que diga "Primero ubica una decoración en la ciudad."
-        |-si hay una decoracion, entonces puedes seleccionar el edificio.
-    |-si puedes seleccionar el edificio, solo puedes ubicar al lado de una decoración, por lo tanto al presionar +, comprueba los vecinos del edificio.
-        |-si ubicas en un lugar sin decoracion a su lado, entonces aparecerá el mensaje "Debe estar al lado de una decoración."
+.- Falta agregar áreas para edificios 2x2
+.- Falta agregar un pkl de estadisticas
+.- falta implementar gymnasium
