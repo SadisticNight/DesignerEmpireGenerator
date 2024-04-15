@@ -86,17 +86,20 @@ class Condiciones:
         if area is None and zona is None:
             return True
 
-        for x, y in area:
-            if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
-                print("Edificio existente en el área.")
-                return False
+        if area is not None:
+            for x, y in area:
+                if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
+                    print("Edificio existente en el área.")
+                    return False
 
-        for x, y in zona:
-            if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
-                print("Edificio existente en el zona.")
-                return False
+        if zona is not None:
+            for x, y in zona:
+                if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
+                    print("Edificio existente en el zona.")
+                    return False
 
         return True
+
 
     @staticmethod
     def condiciones(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):

@@ -208,11 +208,14 @@ while True:
                                     pickle.dump(celdas_data, file)
                                 print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
                                 # Llamada a actualizar_celdas de la clase Area
-                                Area.area_defecto(edificio_seleccionado, posicion_usuario)
-                                Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                if edificio_seleccionado in ['policia']:
+                                if edificio_seleccionado in ['decoracion', 'policia',  'bombero', 'colegio', 'hospital']:
                                     Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
-                                Area.servicios_cubiertos(edificio_seleccionado, edificios)          
+                                Area.area_defecto(edificio_seleccionado, posicion_usuario)
+                                Area.area_afectada_(edificio_seleccionado, posicion_usuario)
+                                Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario)
+                                Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
+                                Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
                             else:
                                 print(_F)
 
