@@ -1,3 +1,2 @@
-.- Falta agregar un pkl de estadisticas
+.- Es probable ajustar estadisticas en el futuro.
 .- falta implementar gymnasium
-.- posibilidad de implementar que no se pueda ubicar edificios si faltan recursos.
