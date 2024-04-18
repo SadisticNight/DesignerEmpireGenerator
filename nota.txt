@@ -1,2 +1,4 @@
+.- cree un main copy como respaldo
+.- Modificamos casi todo el código para que utilice match case en lugar de muchos if
 .- Falta agregar un pkl de estadisticas
 .- falta implementar gymnasium

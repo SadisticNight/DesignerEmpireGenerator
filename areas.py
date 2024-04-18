@@ -16,6 +16,7 @@ class Area:
     y_centro = 0
     max_efecto = 100
 
+    # no pasar a match-case
     @staticmethod
     def area_defecto(edificio_seleccionado, posicion_edificio):
         if edificio_seleccionado not in ['residencia', 'taller_togas', 'herreria', 'decoracion', 'lecheria', 'refineria', 'policia', 'bombero', 'colegio', 'hospital']:
@@ -138,14 +139,17 @@ class Area:
             atributos_edificio = edificios[edificio_seleccionado].to_dict()
             for celda_coords in area_afectada_dict:
                 celda = next((c for c in celdas_data[_Q] if c['x'] == celda_coords[0] and c['y'] == celda_coords[1]), None)
-                if celda is not None:
-                    # Calculamos el centro del edificio de 2x2 para la influencia
-                    x_centro = posicion_edificio[0] + 0.5
-                    y_centro = posicion_edificio[1] + 0.5
-                    distancia_influencia = ((celda['x'] - x_centro)**2 + (celda['y'] - y_centro)**2)**0.5
-                    factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / (Area.max_radio_afectado + 1), 1))  # +1 para incluir el tamaño del edificio
-                    celda[_V][_E] += round(factor_influencia * atributos_edificio[_E])
-                    celda[_V][_S] += round(factor_influencia * atributos_edificio[_S])
+                match celda:
+                    case None:
+                        pass
+                    case _:
+                        # Calculamos el centro del edificio de 2x2 para la influencia
+                        x_centro = posicion_edificio[0] + 0.5
+                        y_centro = posicion_edificio[1] + 0.5
+                        distancia_influencia = ((celda['x'] - x_centro)**2 + (celda['y'] - y_centro)**2)**0.5
+                        factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / (Area.max_radio_afectado + 1), 1))  # +1 para incluir el tamaño del edificio
+                        celda[_V][_E] += round(factor_influencia * atributos_edificio[_E])
+                        celda[_V][_S] += round(factor_influencia * atributos_edificio[_S])
 
             # Guardamos los cambios de vuelta en el archivo pickle
             with open(_C, 'wb') as file:
@@ -174,11 +178,14 @@ class Area:
         for celda_coords in area_cubierta_dict:
             celda = next(filter(lambda c: (c['x'], c['y']) == celda_coords, celdas_data[_Q]), _A)
 
-            if celda is not None:
-                distancia_influencia = ((celda['x'] - Area.x_centro)**2 + (celda['y'] - Area.y_centro)**2)**0.5
-                factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / Area.max_radio_cubierto, 1))
-                incremento = round(factor_influencia * Area.max_efecto)
-                celda['servicios'][servicio] = min(Area.max_efecto, max(celda['servicios'].get(servicio, 0), incremento))
+            match celda:
+                case None:
+                    pass
+                case _:
+                    distancia_influencia = ((celda['x'] - Area.x_centro)**2 + (celda['y'] - Area.y_centro)**2)**0.5
+                    factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / Area.max_radio_cubierto, 1))
+                    incremento = round(factor_influencia * Area.max_efecto)
+                    celda['servicios'][servicio] = min(Area.max_efecto, max(celda['servicios'].get(servicio, 0), incremento))
 
         with open(_C, 'wb') as file:
             pickle.dump(celdas_data, file)

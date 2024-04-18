@@ -52,22 +52,25 @@ def generar_hash(edificio):
 
 def actualizar_seleccion():
     global tamanio_cursor, edificio_seleccionado
-    if edificio_seleccionado is not None:
-        tamanio_cursor = edificios[edificio_seleccionado].tamanio
-    else:
-        tamanio_cursor = (1, 1)
+    match edificio_seleccionado:
+        case None:
+            tamanio_cursor = (1, 1)
+        case _:
+            tamanio_cursor = edificios[edificio_seleccionado].tamanio
 
 def dibujar_celda(fila, columna, atributo):
     tamanio_edificio = atributo.tamanio
     if atributo.color == VERDE:  # Si el atributo es el cursor
         rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
     else:  # Si el atributo es un edificio
-        if tamanio_edificio == [2, 2]:
-            rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * (tamanio_edificio[0] - 1), TAMANO_CELDA * (tamanio_edificio[1] - 1))
-        if tamanio_edificio == [1, 1]:
-            rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
+        match tamanio_edificio:
+            case [2,2]:
+                rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * (tamanio_edificio[0] - 1), TAMANO_CELDA * (tamanio_edificio[1] - 1))
+            case [1,1]:
+                rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
+            case _:
+                pass
     pygame.draw.rect(ventana, atributo.color, rect, 0)
-
 
 def dibujar_cuadricula():
     global tamanio_cursor
@@ -77,9 +80,12 @@ def dibujar_cuadricula():
     # Dibujar todos los edificios primero
     for fila in range(NUM_CELDAS):
         for columna in range(NUM_CELDAS):
-            if mapa[fila][columna] != _N:
-                atributo_edificio = edificios[mapa[fila][columna]]
-                dibujar_celda(fila, columna, atributo_edificio)
+            match mapa[fila][columna]:
+                case None:
+                    pass
+                case _:
+                    atributo_edificio = edificios[mapa[fila][columna]]
+                    dibujar_celda(fila, columna, atributo_edificio)
 
     # Dibujar el cursor del usuario
     dibujar_celda(posicion_usuario[0], posicion_usuario[1], Atributo(VERDE, 0, 0, 0, 0, 0, 0, None, 0, 0, list(tamanio_cursor)))
@@ -120,14 +126,18 @@ while True:
         if evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_n:
                 x, y = posicion_usuario
-                if edificio_seleccionado is not _N:
-                    tamanio_edificio = edificios[edificio_seleccionado].tamanio
-                    if tamanio_edificio == [2, 2]:
-                        print(f"Coordenadas 2x2: ({x}, {y}), ({x+1}, {y}), ({x}, {y+1}), ({x+1}, {y+1})")
-                    else:
-                        print(f"Coordenada 1x1: ({x}, {y})")
-                else:
-                    print(f"Coordenada inicial 1x1: ({x}, {y})")
+                match edificio_seleccionado:
+                    case None:
+                        print(f"Coordenada inicial 1x1: ({x}, {y})")
+                    case _:
+                        tamanio_edificio = edificios[edificio_seleccionado].tamanio
+                        match tamanio_edificio:
+                            case [2,2]:
+                                print(f"Coordenadas 2x2: ({x}, {y}), ({x+1}, {y}), ({x}, {y+1}), ({x+1}, {y+1})")
+                            case [1,1]:
+                                print(f"Coordenada 1x1: ({x}, {y})")
+                            case _:
+                                pass          
 
             if evento.key == pygame.K_m:
                 menu.toggle_menu()
@@ -148,134 +158,137 @@ while True:
                 print(f"{edificio_seleccionado} seleccionado")
 
             if evento.key in (pygame.K_KP_PLUS, pygame.K_PLUS):
-                if edificio_seleccionado is _N: 
-                    print('Debe seleccionar un edificio')
-                else:
-                    if Condiciones.condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
-                        tamanio_edificio = edificios[edificio_seleccionado].tamanio
-                        if tamanio_edificio == [2, 2]:
-                            if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:
-                                print(_F)
-                            else:
-                                puede_colocar = True
-                                for f in range(tamanio_edificio[0]):
-                                    for c in range(tamanio_edificio[1]):
-                                        if mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] is not _N:
-                                            puede_colocar = False
-                                            break
-                                    if not puede_colocar:
-                                        break
-                                if puede_colocar:
-                                    hash_edificio = generar_hash(edificio_seleccionado)
-                                    atributos_edificio = edificios[edificio_seleccionado].to_dict()
-                                    for f in range(tamanio_edificio[0]):
-                                        for c in range(tamanio_edificio[1]):
-                                            mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] = edificio_seleccionado
-                                            with open(_C, 'rb') as file:
-                                                celdas_data = pickle.load(file)
-                                            for celda in celdas_data[_Q]:
-                                                if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
-                                                    celda[_Y] = edificio_seleccionado
-                                                    celda[_H] = hash_edificio
-                                                    celda[_Z] = atributos_edificio[_Z].value
-                                                    celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]}
+                match edificio_seleccionado:
+                    case None:
+                        print('Debe seleccionar un edificio')
+                    case _:
+                        if Condiciones.condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
+                            tamanio_edificio = edificios[edificio_seleccionado].tamanio
+                            match tamanio_edificio:
+                                case [2,2]:
+                                    if posicion_usuario[0] + 1 >= NUM_CELDAS or posicion_usuario[1] + 1 >= NUM_CELDAS:
+                                        print(_F)
+                                    else:
+                                        puede_colocar = True
+                                        for f in range(tamanio_edificio[0]):
+                                            for c in range(tamanio_edificio[1]):
+                                                if mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] is not _N:
+                                                    puede_colocar = False
                                                     break
-                                            with open(_C, 'wb') as file:
-                                                pickle.dump(celdas_data, file)
-                                    print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: ({posicion_usuario[0]}, {posicion_usuario[1]}), ({posicion_usuario[0]+1}, {posicion_usuario[1]}), ({posicion_usuario[0]}, {posicion_usuario[1]+1}), ({posicion_usuario[0]+1}, {posicion_usuario[1]+1})")
-                                    # Llamada a actualizar_celdas de la clase Area
-                                    Area.area_defecto(edificio_seleccionado, posicion_usuario)
-                                    match edificio_seleccionado:
-                                        case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
-                                            Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                            Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                        case 'agua' | 'depuradora':
-                                            Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                            Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
-                                        case 'decoracion':
-                                            Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                            Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                        case 'policia' | 'bombero' | 'colegio' | 'hospital':
-                                            Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                            Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
-                                            Area.servicios_cubiertos(edificio_seleccionado, edificios)
-                                        case _:
-                                            True
-                                else:
-                                    print(_F)
-                        else:
-                            # Para edificios de tamaño 1x1, aplicar la lógica anterior
-                            puede_colocar = True
-                            if mapa[posicion_usuario[0]][posicion_usuario[1]] is not _N:
-                                puede_colocar = False
-                            if puede_colocar:
-                                hash_edificio = generar_hash(edificio_seleccionado)
-                                atributos_edificio = edificios[edificio_seleccionado].to_dict()
-                                mapa[posicion_usuario[0]][posicion_usuario[1]] = edificio_seleccionado
-                                with open(_C, 'rb') as file:
-                                    celdas_data = pickle.load(file)
-                                for celda in celdas_data[_Q]:
-                                    if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
-                                        celda[_Y] = edificio_seleccionado
-                                        celda[_H] = hash_edificio
-                                        celda[_Z] = atributos_edificio[_Z].value
-                                        for key in [_A, _T, _R, _I, _B, _U, _E, _S]:
-                                            celda[_V][key] += atributos_edificio[key]
-                                        break
-                                with open(_C, 'wb') as file:
-                                    pickle.dump(celdas_data, file)
-                                print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
-                                # Llamada a actualizar_celdas de la clase Area
-                                Area.area_defecto(edificio_seleccionado, posicion_usuario)
-                                match edificio_seleccionado:
-                                    case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
-                                        Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                        Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                    case 'agua' | 'depuradora':
-                                        Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                        Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
-                                    case 'decoracion':
-                                        Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                        Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                    case 'policia' | 'bombero' | 'colegio' | 'hospital':
-                                        Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                        Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                        Area.servicios_cubiertos(edificio_seleccionado, edificios)
-                                    case _:
-                                        True
-                            else:
-                                print(_F)
-
-                actualizar_pantalla()
+                                            if not puede_colocar:
+                                                break
+                                        if puede_colocar:
+                                            hash_edificio = generar_hash(edificio_seleccionado)
+                                            atributos_edificio = edificios[edificio_seleccionado].to_dict()
+                                            for f in range(tamanio_edificio[0]):
+                                                for c in range(tamanio_edificio[1]):
+                                                    mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] = edificio_seleccionado
+                                                    with open(_C, 'rb') as file:
+                                                        celdas_data = pickle.load(file)
+                                                    for celda in celdas_data[_Q]:
+                                                        if celda['x'] == posicion_usuario[0] + f and celda['y'] == posicion_usuario[1] + c:
+                                                            celda[_Y] = edificio_seleccionado
+                                                            celda[_H] = hash_edificio
+                                                            celda[_Z] = atributos_edificio[_Z].value
+                                                            celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]}
+                                                            break
+                                                    with open(_C, 'wb') as file:
+                                                        pickle.dump(celdas_data, file)
+                                            print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: ({posicion_usuario[0]}, {posicion_usuario[1]}), ({posicion_usuario[0]+1}, {posicion_usuario[1]}), ({posicion_usuario[0]}, {posicion_usuario[1]+1}), ({posicion_usuario[0]+1}, {posicion_usuario[1]+1})")
+                                            # Llamada a actualizar_celdas de la clase Area
+                                            Area.area_defecto(edificio_seleccionado, posicion_usuario)
+                                            match edificio_seleccionado:
+                                                case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                                    Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                case 'agua' | 'depuradora':
+                                                    Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                    Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
+                                                case 'decoracion':
+                                                    Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                case 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                    Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
+                                                    Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                                case _:
+                                                    pass
+                                        else:
+                                            print(_F)
+                                # Para edificios de tamaño 1x1, aplicar la lógica anterior            
+                                case [1,1]:
+                                    puede_colocar = True
+                                    if mapa[posicion_usuario[0]][posicion_usuario[1]] is not _N:
+                                        puede_colocar = False
+                                    if puede_colocar:
+                                        hash_edificio = generar_hash(edificio_seleccionado)
+                                        atributos_edificio = edificios[edificio_seleccionado].to_dict()
+                                        mapa[posicion_usuario[0]][posicion_usuario[1]] = edificio_seleccionado
+                                        with open(_C, 'rb') as file:
+                                            celdas_data = pickle.load(file)
+                                        for celda in celdas_data[_Q]:
+                                            if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
+                                                celda[_Y] = edificio_seleccionado
+                                                celda[_H] = hash_edificio
+                                                celda[_Z] = atributos_edificio[_Z].value
+                                                for key in [_A, _T, _R, _I, _B, _U, _E, _S]:
+                                                    celda[_V][key] += atributos_edificio[key]
+                                                break
+                                        with open(_C, 'wb') as file:
+                                            pickle.dump(celdas_data, file)
+                                        print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
+                                        # Llamada a actualizar_celdas de la clase Area
+                                        Area.area_defecto(edificio_seleccionado, posicion_usuario)
+                                        match edificio_seleccionado:
+                                            case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                                Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                            case 'agua' | 'depuradora':
+                                                Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
+                                            case 'decoracion':
+                                                Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                            case 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                                Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                            case _:
+                                                pass
+                                    else:
+                                        print(_F)
+                        actualizar_pantalla()
 
             if evento.key in (pygame.K_KP_MINUS, pygame.K_MINUS):
-                if tamanio_cursor == [1, 1]:
-                    with open(_C, 'rb') as file:
-                        celdas_data = pickle.load(file)
-                    for celda in celdas_data[_Q]:
-                        if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
-                            if celda[_Y] != '':
-                                hash_a_eliminar = celda[_H]
-                                atributos_edificio = edificios[celda[_Y]].to_dict()
-                                break
-                    else:
-                        print('No hay edificio en esta celda')
-                        continue
+                match tamanio_cursor:
+                    case [1,1]:
+                        with open(_C, 'rb') as file:
+                            celdas_data = pickle.load(file)
+                        for celda in celdas_data[_Q]:
+                            if celda['x'] == posicion_usuario[0] and celda['y'] == posicion_usuario[1]:
+                                if celda[_Y] != '':
+                                    hash_a_eliminar = celda[_H]
+                                    atributos_edificio = edificios[celda[_Y]].to_dict()
+                                    break
+                        else:
+                            print('No hay edificio en esta celda')
+                            continue
+                        for celda in celdas_data[_Q]:
+                            if celda[_H] == hash_a_eliminar:
+                                celda[_Y] = ''
+                                celda[_H] = ''
+                                celda[_Z] = ''  
+                                celda[_V] = {key: celda[_V][key] - atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]} 
+                                mapa[celda['x']][celda['y']] = _N 
+                        with open(_C, 'wb') as file:
+                            pickle.dump(celdas_data, file)
+                        print('Edificio eliminado')
+                    case [2,2]:
+                        print('El cursor debe ser 1x1')
+                    case _:
+                        print('El cursor debe ser 1x1')
 
-                    for celda in celdas_data[_Q]:
-                        if celda[_H] == hash_a_eliminar:
-                            celda[_Y] = ''
-                            celda[_H] = ''
-                            celda[_Z] = ''  
-                            celda[_V] = {key: celda[_V][key] - atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]} 
-                            mapa[celda['x']][celda['y']] = _N 
-                    with open(_C, 'wb') as file:
-                        pickle.dump(celdas_data, file)
-                    print('Edificio eliminado')
-                else:
-                    print('El cursor debe ser 1x1')
                 actualizar_pantalla()
-
 
             if menu.menu_activo:
                 menu.manejar_evento(evento)
