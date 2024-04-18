@@ -1,2 +1,2 @@
 .- Es probable ajustar estadisticas en el futuro.
-.- falta implementar gymnasium
+.- Solamente queda implementar gymnasium!!
