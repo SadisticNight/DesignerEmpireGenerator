@@ -56,33 +56,32 @@ class Condiciones:
     
     @staticmethod
     def condicion_agua(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
-        x, y = posicion
-
-        # Verificar si el edificio es Condiciones._A
         if edificio_seleccionado == Condiciones._A:
-            # Verificar si hay al menos un edificio de tipo Condiciones._D en las celdas vecinas
             tiene_vecino_decoracion = Condiciones._F
-            for dx in [-1, 0, 1]:
-                for dy in [-1, 0, 1]:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < NUM_CELDAS and 0 <= ny < NUM_CELDAS and mapa[nx][ny] is not Condiciones._N and mapa[nx][ny] == Condiciones._D:
-                        tiene_vecino_decoracion = Condiciones._T
-                        break
+            for dx in range(-1, 3):
+                for dy in range(-1, 3):
+                    nx, ny = posicion[0] + dx, posicion[1] + dy
+                    if 0 <= dx < 2 and 0 <= dy < 2:
+                        continue
+                    if 0 <= nx < NUM_CELDAS and 0 <= ny < NUM_CELDAS:
+                        if mapa[nx][ny] == Condiciones._D:
+                            tiene_vecino_decoracion = Condiciones._T
+                            break
                 if tiene_vecino_decoracion:
                     break
+
             if not tiene_vecino_decoracion:
                 print("Debe ubicarse al lado o en la esquina de una decoración")
                 return Condiciones._F
-        else:
-            pass
 
         return Condiciones._T
+
+
     
     @staticmethod
     def condicion_areas(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
         area = Area.area_afectada_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
         zona = Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
-        
         if area is None and zona is None:
             return True
 

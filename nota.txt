@@ -1,3 +1,2 @@
-.- Falta agregar áreas para edificios 2x2
 .- Falta agregar un pkl de estadisticas
 .- falta implementar gymnasium

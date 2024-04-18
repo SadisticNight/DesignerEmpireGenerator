@@ -183,6 +183,24 @@ while True:
                                             with open(_C, 'wb') as file:
                                                 pickle.dump(celdas_data, file)
                                     print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: ({posicion_usuario[0]}, {posicion_usuario[1]}), ({posicion_usuario[0]+1}, {posicion_usuario[1]}), ({posicion_usuario[0]}, {posicion_usuario[1]+1}), ({posicion_usuario[0]+1}, {posicion_usuario[1]+1})")
+                                    # Llamada a actualizar_celdas de la clase Area
+                                    Area.area_defecto(edificio_seleccionado, posicion_usuario)
+                                    match edificio_seleccionado:
+                                        case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                            Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                            Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                        case 'agua' | 'depuradora':
+                                            Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                            Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
+                                        case 'decoracion':
+                                            Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                            Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                        case 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                            Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                            Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
+                                            Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                        case _:
+                                            True
                                 else:
                                     print(_F)
                         else:
@@ -208,14 +226,23 @@ while True:
                                     pickle.dump(celdas_data, file)
                                 print(f"Edificio {edificio_seleccionado} colocado en {posicion_usuario}")
                                 # Llamada a actualizar_celdas de la clase Area
-                                if edificio_seleccionado in ['decoracion', 'policia',  'bombero', 'colegio', 'hospital']:
-                                    Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
                                 Area.area_defecto(edificio_seleccionado, posicion_usuario)
-                                Area.area_afectada_(edificio_seleccionado, posicion_usuario)
-                                Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario)
-                                Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
-                                Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                match edificio_seleccionado:
+                                    case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                        Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                        Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                    case 'agua' | 'depuradora':
+                                        Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                        Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
+                                    case 'decoracion':
+                                        Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                        Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                    case 'policia' | 'bombero' | 'colegio' | 'hospital':
+                                        Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                        Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                        Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                    case _:
+                                        True
                             else:
                                 print(_F)
 

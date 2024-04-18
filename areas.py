@@ -45,6 +45,23 @@ class Area:
                     Area.area_afectada.add((x, y))
         # print(f"El área afectada por {edificio_seleccionado} es: {Area.area_afectada}")
         return list(Area.area_afectada)
+    
+    @staticmethod
+    def area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_edificio, NUM_CELDAS=200):
+        match edificio_seleccionado:
+            case 'depuradora' | 'agua':
+                radio = 4
+            case _:
+                return
+        Area.area_afectada.clear()
+        Area.x_centro = posicion_edificio[0] + 0.5
+        Area.y_centro = posicion_edificio[1] + 0.5
+        
+        for x in range(max(0, int(Area.x_centro - radio - 0.5)), min(NUM_CELDAS, int(Area.x_centro + radio + 1.5))):
+            for y in range(max(0, int(Area.y_centro - radio - 0.5)), min(NUM_CELDAS, int(Area.y_centro + radio + 1.5))):
+                Area.area_afectada.add((x, y))
+
+        return list(Area.area_afectada)
 
     @staticmethod
     def area_afectada_por_edificio(edificio_seleccionado, posicion_edificio, NUM_CELDAS=200):
@@ -88,11 +105,10 @@ class Area:
         # print(f"La zona cubierta por {edificio_seleccionado} es: {Area.area_cubierta}")
         return list(Area.area_cubierta)
 
-
     # Area para Felicidad y Ambiente   
     @staticmethod
     def actualizar_celdas(edificio_seleccionado, edificios):
-        if edificio_seleccionado in ['decoracion', 'policia', 'bombero', 'colegio', 'hospital']:
+        if edificio_seleccionado in ['residencia', 'taller_togas', 'herreria', 'decoracion', 'lecheria', 'refineria', 'policia', 'bombero', 'colegio', 'hospital']:
             area_afectada_dict = {coord: _A for coord in Area.area_afectada}
             # print(f"Centro definido en: ({Area.x_centro}, {Area.y_centro})")
             with open(_C, 'rb') as file:
@@ -108,6 +124,33 @@ class Area:
             with open(_C, 'wb') as file:
                 pickle.dump(celdas_data, file)
             # print(f"Área de {edificio_seleccionado} rellenada")
+
+    @staticmethod
+    def actualizar_celdas_2x2(edificio_seleccionado, posicion_edificio, edificios, NUM_CELDAS=200):
+        if edificio_seleccionado in ['agua', 'depuradora']:
+            # Obtenemos el área afectada por un edificio de 2x2
+            area_afectada = Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_edificio, NUM_CELDAS)
+            area_afectada_dict = {coord: None for coord in area_afectada}
+
+            with open(_C, 'rb') as file:
+                celdas_data = pickle.load(file)
+
+            atributos_edificio = edificios[edificio_seleccionado].to_dict()
+            for celda_coords in area_afectada_dict:
+                celda = next((c for c in celdas_data[_Q] if c['x'] == celda_coords[0] and c['y'] == celda_coords[1]), None)
+                if celda is not None:
+                    # Calculamos el centro del edificio de 2x2 para la influencia
+                    x_centro = posicion_edificio[0] + 0.5
+                    y_centro = posicion_edificio[1] + 0.5
+                    distancia_influencia = ((celda['x'] - x_centro)**2 + (celda['y'] - y_centro)**2)**0.5
+                    factor_influencia = 0.50 + 0.50 * (1 - min(distancia_influencia / (Area.max_radio_afectado + 1), 1))  # +1 para incluir el tamaño del edificio
+                    celda[_V][_E] += round(factor_influencia * atributos_edificio[_E])
+                    celda[_V][_S] += round(factor_influencia * atributos_edificio[_S])
+
+            # Guardamos los cambios de vuelta en el archivo pickle
+            with open(_C, 'wb') as file:
+                pickle.dump(celdas_data, file)
+
 
     # Afecta a la zona que cubre la policia
     @staticmethod
