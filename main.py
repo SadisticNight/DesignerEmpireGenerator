@@ -3,9 +3,11 @@ from menu import Menu
 from edificios import edificios
 from atributos import Atributo
 from generar_pickle import generar_datos
+from crear_stats import generar_datos_stats
 import os,pickle,hashlib,time
 from condiciones import Condiciones
 from areas import Area
+from estadisticas import Stats
 
 TECLA_IZQUIERDA = pygame.K_LEFT
 TECLA_DERECHA = pygame.K_RIGHT
@@ -24,6 +26,7 @@ _Y='edificio'
 _Q='celdas'
 _H='hash'
 _C='celdas.pkl'
+_W='estadisticas.pkl'
 _A='energia'
 _T='agua'
 _R='basura'
@@ -36,6 +39,7 @@ _V='atributos'
 _Z='tipo'
 
 if not os.path.exists(_C):generar_datos()
+if not os.path.exists(_W):generar_datos_stats()
 
 pygame.init()
 ventana = pygame.display.set_mode((ANCHO_VENTANA, ALTO_VENTANA))
@@ -46,6 +50,7 @@ posicion_usuario = [NUM_CELDAS // 2, NUM_CELDAS // 2]
 ultima_posicion = list(posicion_usuario)
 mapa = np.full((NUM_CELDAS, NUM_CELDAS), _N)
 edificio_seleccionado = _N
+stats = Stats()
 
 def generar_hash(edificio):
     return hashlib.sha256((edificio + str(time.time())).encode()).hexdigest()
@@ -120,6 +125,7 @@ while True:
 
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
+            # stats.procesar_estadisticas()
             pygame.quit()
             sys.exit()
             
@@ -213,6 +219,7 @@ while True:
                                                     Area.servicios_cubiertos(edificio_seleccionado, edificios)
                                                 case _:
                                                     pass
+                                            stats.procesar_estadisticas()
                                         else:
                                             print(_F)
                                 # Para edificios de tamaño 1x1, aplicar la lógica anterior            
@@ -255,6 +262,7 @@ while True:
                                                 Area.servicios_cubiertos(edificio_seleccionado, edificios)
                                             case _:
                                                 pass
+                                        stats.procesar_estadisticas()
                                     else:
                                         print(_F)
                         actualizar_pantalla()

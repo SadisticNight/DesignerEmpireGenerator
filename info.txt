@@ -10,10 +10,14 @@ python -m pip install --upgrade --force-reinstall numpy
 py -3.12 main.py
 python main.py
 
-
+estadisticas.py: se encarga de calcular las estadisticas y almacenarlas en estadisticas.pkl
+estadisticas.pkl: Almacena los stats necesarios calculados a partir de celdas.pkl.
+areas.py: Gestiona el área de efecto de Felicidad y Ambiente de los edificios y las zonas que cubren los edificios que brindan servicios.
+condiciones.py: Se encarga de poner ciertas condiciones al juego como: edificios que no pueden colocarse sin un suelo de vecino, que el agua no pueda colocarse sin una decoracion de vecino, y que ciertos edificios no se coloquen dentro de areas o zonas de otros edificios.
 menu.py: Implementa un menú para seleccionar edificios.
-edificios.py: Define la estructura de datos para los atributos de los edificios y carga la información de los edificios desde un archivo JSON.
-edificios.json: Contiene la información de los edificios, como color, recursos consumidos/producidos, empleos, residentes, tipo, impacto en la felicidad y el ambiente, y tamaño.
-celdas.json: Define la matriz de celdas del mapa con sus atributos (energía, agua, basura, comida, empleos, residentes, felicidad y ambiente).
+edificios.py: Define la estructura de datos para los atributos de los edificios y carga la información de los edificios desde un archivo pkl.
+edificios.pkl: Contiene la información de los edificios, como color, recursos consumidos/producidos, empleos, residentes, tipo, impacto en la felicidad y el ambiente, y tamaño.
+celdas.pkl: Define la matriz de celdas del mapa 200x200 con sus atributos (energía, agua, basura, comida, empleos, residentes, felicidad y ambiente) y servicios (seguridad, incendio, salud, educación).
+se ve asi: {'x': 0, 'y': 0, 'hash': '', 'edificio': '', 'tipo': '', 'atributos': {'energia': 0, 'agua': 0, 'basura': 0, 'comida': 0, 'empleos': 0, 'residentes': 0, 'felicidad': 0, 'ambiente': 0}, 'servicios': {'seguridad': 0, 'incendio': 0, 'salud': 0, 'educacion': 0}}
 atributos.py: Define la clase Atributo que representa los atributos de un edificio.
 main.py: Implementa el juego básico de construcción de ciudades con las funcionalidades básicas.
