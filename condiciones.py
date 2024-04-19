@@ -28,7 +28,7 @@ class Condiciones:
                             print("No se puede colocar suelos cerca de otros suelos")
                             return Condiciones._F
             case _:
-                # Para todos los edificios excepto decoración, lechería, depuradora, agua, bombero
+                # Para todos los edificios excepto suelo, decoración, lechería, depuradora, agua, bombero
                 match edificio_seleccionado:
                     case 'suelo' | Condiciones._D | 'lecheria' | 'depuradora' | Condiciones._A | 'bombero':
                         pass
@@ -91,6 +91,7 @@ class Condiciones:
             for x, y in area:
                     if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
                         print("Edificio existente en el área.")
+                        return False
         
         if zona is not None:
             for x, y in zona:

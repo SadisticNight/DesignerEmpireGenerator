@@ -19,6 +19,11 @@ Enter: Selecciona un edificio del menú.
 Condiciones:
 
 suelo: No puede colocarse en los bordes del mapa ni cerca de otros suelos.
-Otros edificios: Deben ubicarse al lado o en la esquina de un suelo.
+Todos los edificios excepto suelo, decoración, lechería, depuradora, agua y bombero: Deben ubicarse al lado o en la esquina de un suelo.
 agua: Debe ubicarse al lado o en la esquina de una decoración.
+Solo se puede eliminar un edificio cuando elegimos un edificio 1x1.
+No se pueden ubicar edificios dentro de la misma área o zona de otro edificio. Esta medida por un radio.
+Edificios de policia, bombero y colegio tienen un área de 13 celdas de radio.
+El edificio de hospital tiene 11 celdas de radio.
+El edificio decoracion tiene 4 celdas de radio. 
 El espacio debe estar disponible para colocar cualquier edificio. Las condiciones pueden variar según el tipo de edificio.
