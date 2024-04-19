@@ -78,6 +78,6 @@ class Stats:
                 estadisticas['cantidad_edificios'][edificio] = 1
                 self.hashes_contados.add(hash_value)
 
-            
+           
         # Guardar estadísticas actualizadas
         self.guardar_datos(self.archivo_estadisticas, estadisticas)
