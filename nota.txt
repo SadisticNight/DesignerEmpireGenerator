@@ -1,2 +1,6 @@
-.- Es probable ajustar estadisticas en el futuro.
 .- Solamente queda implementar gymnasium!!
+    |- interfaz_gym.py - Define y registra tu entorno de Gymnasium. Aquí se implementan los métodos reset(), step(action), render(), y close(). También es donde defines el espacio de acción y observación.
+    |- train_agent.py - Este archivo será para configurar, entrenar y evaluar tu modelo de aprendizaje por refuerzo usando Stable Baselines3. Aquí también puedes incluir código para visualizar el comportamiento del agente.
+    |- custom_policy.py - Este archivo contiene la definición de tu política personalizada, donde defines la arquitectura de la red neuronal que el modelo utilizará para aprender a jugar tu juego. Aquí puedes experimentar con diferentes configuraciones de red y técnicas avanzadas de aprendizaje profundo.
+
+.- Es probable ajustar estadisticas en el futuro.

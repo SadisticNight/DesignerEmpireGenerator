@@ -15,7 +15,8 @@ def generar_datos_stats():
         "total_empleos": 0,
         "porcentaje_industria": 0.0,
         "porcentaje_comercio": 0.0,
-        "EC_proporcion_correcta": False,
+        "desequilibrio_laboral": 0,
+        "EC": False,
         "energia_usada": 0,
         "energia_total": 0,
         "agua_usada": 0,
@@ -25,6 +26,7 @@ def generar_datos_stats():
         "basura_usada": 0,
         "basura_total": 0,
         "ecologia_total": 0,
+        "felicidad_total": 0,
         "cantidad_edificios": {nombre: 0 for nombre in nombres_edificios}
     }
     return stats

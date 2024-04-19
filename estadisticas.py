@@ -41,6 +41,8 @@ class Stats:
             # Acumular estadísticas de empleos y residentes
             if hash_value not in self.hashes_contados:
                 estadisticas['total_residentes'] += atributos['residentes']
+                estadisticas['total_empleos'] += atributos['empleos']
+                estadisticas['desequilibrio_laboral'] = estadisticas['total_empleos'] - estadisticas['total_residentes']
                 match edificio:
                     case 'industria':
                         estadisticas['total_empleos_industria'] += atributos['empleos']
@@ -48,6 +50,14 @@ class Stats:
                         estadisticas['total_empleos_comercio'] += atributos['empleos']
                     case _:
                         pass
+                
+            # Calcular proporción Employment Composition
+            if estadisticas['total_empleos'] > 0:
+                estadisticas['porcentaje_industria'] = (estadisticas['total_empleos_industria'] / estadisticas['total_empleos'] * 100) if estadisticas['total_empleos'] > 0 else 0
+                estadisticas['porcentaje_comercio'] = (estadisticas['total_empleos_comercio'] / estadisticas['total_empleos'] * 100) if estadisticas['total_empleos'] > 0 else 0
+                ratio_industria = estadisticas['total_empleos_industria'] / estadisticas['total_empleos']
+                ratio_comercio = estadisticas['total_empleos_comercio'] / estadisticas['total_empleos']
+                estadisticas['EC'] = (ratio_industria == 1/3 and ratio_comercio == 2/3 and -100 <= estadisticas['desequilibrio_laboral'] <= 100)
                 
             # Acumular uso y total de recursos
             for recurso, edificios in self.proveedores.items():
@@ -68,5 +78,6 @@ class Stats:
                 estadisticas['cantidad_edificios'][edificio] = 1
                 self.hashes_contados.add(hash_value)
 
+            
         # Guardar estadísticas actualizadas
         self.guardar_datos(self.archivo_estadisticas, estadisticas)

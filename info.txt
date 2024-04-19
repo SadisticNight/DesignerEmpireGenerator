@@ -21,3 +21,7 @@ celdas.pkl: Define la matriz de celdas del mapa 200x200 con sus atributos (energ
 se ve asi: {'x': 0, 'y': 0, 'hash': '', 'edificio': '', 'tipo': '', 'atributos': {'energia': 0, 'agua': 0, 'basura': 0, 'comida': 0, 'empleos': 0, 'residentes': 0, 'felicidad': 0, 'ambiente': 0}, 'servicios': {'seguridad': 0, 'incendio': 0, 'salud': 0, 'educacion': 0}}
 atributos.py: Define la clase Atributo que representa los atributos de un edificio.
 main.py: Implementa el juego básico de construcción de ciudades con las funcionalidades básicas.
+
+interfaz_gym.py: Define y registra tu entorno de Gymnasium. Aquí se implementan los métodos reset(), step(action), render(), y close(). También es donde defines el espacio de acción y observación.
+train_agent.py: Este archivo será para configurar, entrenar y evaluar tu modelo de aprendizaje por refuerzo usando Stable Baselines3. Aquí también puedes incluir código para visualizar el comportamiento del agente.
+custom_policy.py: Este archivo contiene la definición de tu política personalizada, donde defines la arquitectura de la red neuronal que el modelo utilizará para aprender a jugar tu juego. Aquí puedes experimentar con diferentes configuraciones de red y técnicas avanzadas de aprendizaje profundo.
