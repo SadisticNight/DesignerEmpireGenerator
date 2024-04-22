@@ -207,16 +207,17 @@ while True:
                                                 case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
                                                     Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
                                                     Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                    # 'policia' | 'bombero' | 'colegio' | 'hospital'
+                                                    Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                    Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                    Area.servicios_cubiertos(edificio_seleccionado, edificios)
                                                 case 'agua' | 'depuradora':
                                                     Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
                                                     Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
                                                 case 'decoracion':
-                                                    Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                                case 'policia' | 'bombero' | 'colegio' | 'hospital':
-                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                                    Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario)
-                                                    Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                                    Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                    Area.actualizar_celdas(edificio_seleccionado, edificios)                                                
                                                 case _:
                                                     pass
                                             stats.procesar_estadisticas()
@@ -250,16 +251,17 @@ while True:
                                             case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria' | 'policia' | 'bombero' | 'colegio' | 'hospital':
                                                 Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
                                                 Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                # 'policia' | 'bombero' | 'colegio' | 'hospital'
+                                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                                Area.actualizar_celdas(edificio_seleccionado, edificios)
+                                                Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+                                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
                                             case 'agua' | 'depuradora':
                                                 Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
                                                 Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
                                             case 'decoracion':
                                                 Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                                Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                            case 'policia' | 'bombero' | 'colegio' | 'hospital':
-                                                Area.actualizar_celdas(edificio_seleccionado, edificios)
-                                                Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-                                                Area.servicios_cubiertos(edificio_seleccionado, edificios)
+                                                Area.actualizar_celdas(edificio_seleccionado, edificios)                                                
                                             case _:
                                                 pass
                                         stats.procesar_estadisticas()

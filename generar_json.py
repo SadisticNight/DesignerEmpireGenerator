@@ -21,10 +21,10 @@ def generar_json():
                     "ambiente": 0
                 },
                 "servicios": {
-                    "seguridad": 0,
-                    "incendio": 0,
-                    "salud": 0,
-                    "educacion": 0
+                    "seguridad": 0.0,
+                    "incendio": 0.0,
+                    "salud": 0.0,
+                    "educacion": 0.0
                 }
             }
             datos["celdas"].append(celda)
