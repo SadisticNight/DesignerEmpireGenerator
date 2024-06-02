@@ -1,84 +1,81 @@
 from areas import Area
+from collections import defaultdict
+import itertools
 
 class Condiciones:
+    __slots__ = ()
 
-    _N=None
-    _T=True
-    _F=False
-    _D='decoracion'
-    _A='agua'
-    _P='policia'
+    _N = None
+    _T = True
+    _F = False
+    _D = 'decoracion'
+    _A = 'agua'
+    _P = 'policia'
 
     @staticmethod
     def condicion_suelo(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
         tamanio_edificio = edificios[edificio_seleccionado].tamanio
         x, y = posicion
-        # Verificar si el edificio es 'suelo' y si está en el borde del mapa
+
         match edificio_seleccionado:
             case 'suelo':
                 if x == 0 or y == 0 or x == NUM_CELDAS - 1 or y == NUM_CELDAS - 1:
                     print("No se puede colocar suelos en los bordes del mapa")
                     return Condiciones._F
 
-                # Verificar si hay edificios de tipo 'suelo' en las celdas vecinas
-                for dx in [-2, -1, 0, 1, 2]:
-                    for dy in [-2, -1, 0, 1, 2]:
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < NUM_CELDAS and 0 <= ny < NUM_CELDAS and mapa[nx][ny] is not Condiciones._N and mapa[nx][ny] == 'suelo':
-                            print("No se puede colocar suelos cerca de otros suelos")
-                            return Condiciones._F
+                if any(
+                    0 <= x + dx < NUM_CELDAS and 0 <= y + dy < NUM_CELDAS and mapa[x + dx][y + dy] == 'suelo'
+                    for dx, dy in itertools.product(range(-2, 3), repeat=2)
+                ):
+                    print("No se puede colocar suelos cerca de otros suelos")
+                    return Condiciones._F
+
             case _:
-                # Para todos los edificios excepto suelo, decoración, lechería, depuradora, agua, bombero
                 match edificio_seleccionado:
                     case 'suelo' | Condiciones._D | 'lecheria' | 'depuradora' | Condiciones._A | 'bombero':
                         pass
                     case _:
-                        # Verificar si hay al menos un edificio de tipo 'suelo' en las celdas vecinas
-                        tiene_vecino_suelo = Condiciones._F
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
-                                nx, ny = x + dx, y + dy
-                                if 0 <= nx < NUM_CELDAS and 0 <= ny < NUM_CELDAS and mapa[nx][ny] is not Condiciones._N and mapa[nx][ny] == 'suelo':
-                                    tiene_vecino_suelo = Condiciones._T
-                                    break
-                            if tiene_vecino_suelo:
-                                break
-                        if not tiene_vecino_suelo:
+                        if not any(
+                            0 <= x + dx < NUM_CELDAS and 0 <= y + dy < NUM_CELDAS and mapa[x + dx][y + dy] == 'suelo'
+                            for dx, dy in itertools.product(range(-1, 2), repeat=2)
+                        ):
                             print("Debe ubicarse al lado o en la esquina de un suelo")
                             return Condiciones._F
-                        
-        # Verificar si el espacio está disponible
-        for f in range(tamanio_edificio[0]):
-            for c in range(tamanio_edificio[1]):
-                if mapa[x + f][y + c] is not Condiciones._N:
-                    return Condiciones._F
+
+        if any(
+            not (0 <= x + f < NUM_CELDAS and 0 <= y + c < NUM_CELDAS) or mapa[x + f][y + c] is not Condiciones._N
+            for f, c in itertools.product(range(tamanio_edificio[0]), range(tamanio_edificio[1]))
+        ):
+            return Condiciones._F
 
         return Condiciones._T
-    
+
     @staticmethod
     def condicion_agua(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
         match edificio_seleccionado:
             case Condiciones._A:
-                tiene_vecino_decoracion = Condiciones._F
-                for dx in range(-1, 3):
-                    for dy in range(-1, 3):
-                        nx, ny = posicion[0] + dx, posicion[1] + dy
-                        if 0 <= dx < 2 and 0 <= dy < 2:
-                            continue
-                        if 0 <= nx < NUM_CELDAS and 0 <= ny < NUM_CELDAS:
-                            if mapa[nx][ny] == Condiciones._D:
-                                tiene_vecino_decoracion = Condiciones._T
-                                break
-                    if tiene_vecino_decoracion:
-                        break
+                tiene_vecino_decoracion = any(
+                    0 <= posicion[0] + dx < NUM_CELDAS and 0 <= posicion[1] + dy < NUM_CELDAS and mapa[posicion[0] + dx][posicion[1] + dy] == Condiciones._D
+                    for dx, dy in itertools.product(range(-1, 3), repeat=2)
+                    if not (0 <= dx < 2 and 0 <= dy < 2)
+                )
+
                 if not tiene_vecino_decoracion:
                     print("Debe ubicarse al lado o en la esquina de una decoración")
                     return Condiciones._F
+
+                if any(
+                    not (0 <= posicion[0] + f < NUM_CELDAS and 0 <= posicion[1] + c < NUM_CELDAS) or mapa[posicion[0] + f][posicion[1] + c] is not None
+                    for f, c in itertools.product(range(2), repeat=2)
+                ):
+                    print("No puede colocarse sobre otro edificio o fuera de los límites del mapa")
+                    return Condiciones._F
+
             case _:
                 pass
+
         return Condiciones._T
 
-    # No agregar match-case
     @staticmethod
     def condicion_areas(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
         area = Area.area_afectada_por_edificio(edificio_seleccionado, posicion, NUM_CELDAS)
@@ -86,21 +83,22 @@ class Condiciones:
 
         if area is None and zona is None:
             return True
-        
-        if area is not None:
-            for x, y in area:
-                    if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
-                        print("Edificio existente en el área.")
-                        return False
-        
-        if zona is not None:
-            for x, y in zona:
-                    if 0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado:
-                        print("Edificio existente en el zona.")
-                        return False
+
+        def verificar_ocupacion(coordenadas):
+            return any(
+                0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado
+                for x, y in coordenadas
+            )
+
+        if area is not None and verificar_ocupacion(area):
+            print("Edificio existente en el área.")
+            return False
+
+        if zona is not None and verificar_ocupacion(zona):
+            print("Edificio existente en la zona.")
+            return False
 
         return True
-
 
     @staticmethod
     def condiciones(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
