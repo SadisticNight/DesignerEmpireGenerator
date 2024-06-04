@@ -1,6 +1,10 @@
+import logging
 from areas import Area
 from collections import defaultdict
 import itertools
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Condiciones:
     __slots__ = ()
@@ -13,21 +17,27 @@ class Condiciones:
     _P = 'policia'
 
     @staticmethod
+    def crear_ocupacion(mapa, NUM_CELDAS):
+        return defaultdict(lambda: None, {(x, y): mapa[x][y] for x in range(NUM_CELDAS) for y in range(NUM_CELDAS)})
+
+    @staticmethod
     def condicion_suelo(edificio_seleccionado, posicion, mapa, NUM_CELDAS, edificios):
         tamanio_edificio = edificios[edificio_seleccionado].tamanio
         x, y = posicion
 
+        ocupacion = Condiciones.crear_ocupacion(mapa, NUM_CELDAS)
+
         match edificio_seleccionado:
             case 'suelo':
                 if x == 0 or y == 0 or x == NUM_CELDAS - 1 or y == NUM_CELDAS - 1:
-                    print("No se puede colocar suelos en los bordes del mapa")
+                    logger.info("No se puede colocar suelos en los bordes del mapa")
                     return Condiciones._F
 
                 if any(
-                    0 <= x + dx < NUM_CELDAS and 0 <= y + dy < NUM_CELDAS and mapa[x + dx][y + dy] == 'suelo'
+                    0 <= x + dx < NUM_CELDAS and 0 <= y + dy < NUM_CELDAS and ocupacion[(x + dx, y + dy)] == 'suelo'
                     for dx, dy in itertools.product(range(-2, 3), repeat=2)
                 ):
-                    print("No se puede colocar suelos cerca de otros suelos")
+                    logger.info("No se puede colocar suelos cerca de otros suelos")
                     return Condiciones._F
 
             case _:
@@ -36,14 +46,14 @@ class Condiciones:
                         pass
                     case _:
                         if not any(
-                            0 <= x + dx < NUM_CELDAS and 0 <= y + dy < NUM_CELDAS and mapa[x + dx][y + dy] == 'suelo'
+                            0 <= x + dx < NUM_CELDAS and 0 <= y + dy < NUM_CELDAS and ocupacion[(x + dx, y + dy)] == 'suelo'
                             for dx, dy in itertools.product(range(-1, 2), repeat=2)
                         ):
-                            print("Debe ubicarse al lado o en la esquina de un suelo")
+                            logger.info("Debe ubicarse al lado o en la esquina de un suelo")
                             return Condiciones._F
 
         if any(
-            not (0 <= x + f < NUM_CELDAS and 0 <= y + c < NUM_CELDAS) or mapa[x + f][y + c] is not Condiciones._N
+            not (0 <= x + f < NUM_CELDAS and 0 <= y + c < NUM_CELDAS) or ocupacion[(x + f, y + c)] is not Condiciones._N
             for f, c in itertools.product(range(tamanio_edificio[0]), range(tamanio_edificio[1]))
         ):
             return Condiciones._F
@@ -61,14 +71,14 @@ class Condiciones:
                 )
 
                 if not tiene_vecino_decoracion:
-                    print("Debe ubicarse al lado o en la esquina de una decoración")
+                    logger.info("Debe ubicarse al lado o en la esquina de una decoración")
                     return Condiciones._F
 
                 if any(
                     not (0 <= posicion[0] + f < NUM_CELDAS and 0 <= posicion[1] + c < NUM_CELDAS) or mapa[posicion[0] + f][posicion[1] + c] is not None
                     for f, c in itertools.product(range(2), repeat=2)
                 ):
-                    print("No puede colocarse sobre otro edificio o fuera de los límites del mapa")
+                    logger.info("No puede colocarse sobre otro edificio o fuera de los límites del mapa")
                     return Condiciones._F
 
             case _:
@@ -84,18 +94,20 @@ class Condiciones:
         if area is None and zona is None:
             return True
 
+        ocupacion = Condiciones.crear_ocupacion(mapa, NUM_CELDAS)
+
         def verificar_ocupacion(coordenadas):
             return any(
-                0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and mapa[x][y] == edificio_seleccionado
+                0 <= x < NUM_CELDAS and 0 <= y < NUM_CELDAS and ocupacion[(x, y)] == edificio_seleccionado
                 for x, y in coordenadas
             )
 
         if area is not None and verificar_ocupacion(area):
-            print("Edificio existente en el área.")
+            logger.info("Edificio existente en el área.")
             return False
 
         if zona is not None and verificar_ocupacion(zona):
-            print("Edificio existente en la zona.")
+            logger.info("Edificio existente en la zona.")
             return False
 
         return True

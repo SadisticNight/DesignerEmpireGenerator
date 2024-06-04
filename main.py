@@ -1,3 +1,4 @@
+import logging
 import pygame, sys, numpy as np
 from menu import Menu
 from edificios import edificios
@@ -12,6 +13,9 @@ import random
 from collections import defaultdict
 from functools import lru_cache
 import itertools
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 TECLA_IZQUIERDA = pygame.K_LEFT
 TECLA_DERECHA = pygame.K_RIGHT
@@ -45,18 +49,23 @@ _Z = 'tipo'
 if not os.path.exists(_C): generar_datos()
 if not os.path.exists(_W): generar_datos_stats()
 
-pygame.init()
-ventana = pygame.display.set_mode((ANCHO_VENTANA, ALTO_VENTANA))
-pygame.display.set_caption('Juego de Construcción de Ciudades')
-reloj = pygame.time.Clock()
-menu = Menu(ANCHO_VENTANA, ALTO_VENTANA)
+def inicializar_juego(ancho, alto):
+    pygame.init()
+    ventana = pygame.display.set_mode((ancho, alto))
+    pygame.display.set_caption('Juego de Construcción de Ciudades')
+    reloj = pygame.time.Clock()
+    menu = Menu(ancho, alto)
+    return ventana, reloj, menu
+
+ventana, reloj, menu = inicializar_juego(ANCHO_VENTANA, ALTO_VENTANA)
+
 posicion_usuario = [NUM_CELDAS // 2, NUM_CELDAS // 2]
 ultima_posicion = list(posicion_usuario)
-mapa = np.full((NUM_CELDAS, NUM_CELDAS), _N)
+mapa = np.full((NUM_CELDAS, NUM_CELDAS), _N, dtype=object)
 edificio_seleccionado = _N
 stats = Stats()
 
-@lru_cache(maxsize=None)  # Truco Uso de lru_cache aplicado
+@lru_cache(maxsize=None)
 def read_pickle_file(filename):
     with open(filename, 'rb') as file:
         return pickle.load(file)
@@ -65,7 +74,7 @@ def write_pickle_file(filename, data):
     with open(filename, 'wb') as file:
         pickle.dump(data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
-@lru_cache(maxsize=None)  # Truco Uso de lru_cache aplicado
+@lru_cache(maxsize=None)
 def generar_hash(edificio):
     return hashlib.sha256((edificio + str(time.time())).encode()).hexdigest()
 
@@ -77,27 +86,31 @@ def actualizar_seleccion():
         case _:
             tamanio_cursor = edificios[edificio_seleccionado].tamanio
 
+@lru_cache(maxsize=None)
+def get_rect(columna, fila, tamanio_edificio):
+    tamanio_edificio = tuple(tamanio_edificio)
+    return pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
+
 def dibujar_celda(fila, columna, atributo):
-    tamanio_edificio = atributo.tamanio
-    if atributo.color == VERDE:  # Si el atributo es el cursor
-        rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
-    else:  # Si el atributo es un edificio
+    tamanio_edificio = tuple(atributo.tamanio)
+    if atributo.color == VERDE:
+        rect = get_rect(columna, fila, tamanio_edificio)
+    else:
         match tamanio_edificio:
-            case [2, 2]:
-                rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * (tamanio_edificio[0] - 1), TAMANO_CELDA * (tamanio_edificio[1] - 1))
-            case [1, 1]:
-                rect = pygame.Rect(columna * TAMANO_CELDA, fila * TAMANO_CELDA, TAMANO_CELDA * tamanio_edificio[0], TAMANO_CELDA * tamanio_edificio[1])
+            case (2, 2):
+                rect = get_rect(columna, fila, (tamanio_edificio[0] - 1, tamanio_edificio[1] - 1))
+            case (1, 1):
+                rect = get_rect(columna, fila, tamanio_edificio)
             case _:
-                pass
+                return
     pygame.draw.rect(ventana, atributo.color, rect, 0)
 
 def dibujar_cuadricula():
     global tamanio_cursor
     ventana.fill(BLANCO)
     actualizar_seleccion()
-    
-    # Dibujar todos los edificios primero
-    for fila, columna in itertools.product(range(NUM_CELDAS), repeat=2):  # Truco Uso de Iteradores y Generadores aplicado
+
+    for fila, columna in itertools.product(range(NUM_CELDAS), repeat=2):
         match mapa[fila][columna]:
             case None:
                 pass
@@ -105,7 +118,6 @@ def dibujar_cuadricula():
                 atributo_edificio = edificios[mapa[fila][columna]]
                 dibujar_celda(fila, columna, atributo_edificio)
 
-    # Dibujar el cursor del usuario
     dibujar_celda(posicion_usuario[0], posicion_usuario[1], Atributo(VERDE, 0, 0, 0, 0, 0, 0, None, 0, 0, list(tamanio_cursor)))
 
 def actualizar_pantalla():
@@ -113,122 +125,134 @@ def actualizar_pantalla():
     menu.dibujar(ventana)
     pygame.display.flip()
 
+def seleccionar_edificio_aleatorio(edificios_disponibles):
+    return random.choice(list(edificios_disponibles))
+
 def actualizar_area_y_celdas(edificio_seleccionado, posicion_usuario, NUM_CELDAS, edificios):
-    Area.area_defecto(edificio_seleccionado, posicion_usuario)
-    match edificio_seleccionado:
-        case 'residencia' | 'taller_togas' | 'herreria' | 'lecheria' | 'refineria':
-            Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-            Area.actualizar_celdas(edificio_seleccionado, edificios)
-        case 'policia' | 'bombero' | 'colegio' | 'hospital':
-            Area.area_afectada_(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-            Area.actualizar_celdas(edificio_seleccionado, edificios)
-            Area.zona_cubierta_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+    actions = {
+        'residencia': Area.area_afectada_,
+        'taller_togas': Area.area_afectada_,
+        'herreria': Area.area_afectada_,
+        'lecheria': Area.area_afectada_,
+        'refineria': Area.area_afectada_,
+        'policia': Area.zona_cubierta_por_edificio,
+        'bombero': Area.zona_cubierta_por_edificio,
+        'colegio': Area.zona_cubierta_por_edificio,
+        'hospital': Area.zona_cubierta_por_edificio,
+        'agua': Area.area_afectada_por_edificio_2x2,
+        'depuradora': Area.area_afectada_por_edificio_2x2,
+        'decoracion': Area.area_afectada_por_edificio
+    }
+    if edificio_seleccionado in actions:
+        actions[edificio_seleccionado](edificio_seleccionado, posicion_usuario, NUM_CELDAS)
+        Area.actualizar_celdas(edificio_seleccionado, edificios)
+        if edificio_seleccionado in {'policia', 'bombero', 'colegio', 'hospital'}:
             Area.servicios_cubiertos(edificio_seleccionado, edificios)
-        case 'agua' | 'depuradora':
-            Area.area_afectada_por_edificio_2x2(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-            Area.actualizar_celdas_2x2(edificio_seleccionado, posicion_usuario, edificios, NUM_CELDAS)
-        case 'decoracion':
-            Area.area_afectada_por_edificio(edificio_seleccionado, posicion_usuario, NUM_CELDAS)
-            Area.actualizar_celdas(edificio_seleccionado, edificios)                                                
-        case _:
-            pass
+
     stats.procesar_estadisticas()
 
 def llenar_mapa_aleatoriamente():
-    tipos_edificios = list(edificios.keys())
+    tipos_edificios = set(edificios.keys()).copy()
     archivo_celdas = _C
-    print(f"Archivo usado: {archivo_celdas}")
+    logger.info(f"Archivo usado: {archivo_celdas}")
     Total1 = 0
     Total2 = 0
     Totales = 0
     Libres = 40000
     Ocupadas = 0
+    rango_celdas = range(NUM_CELDAS)
 
-    while Libres > 0:
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
-                return
+    start_time = time.time()
 
-        coordenadas = itertools.product(range(NUM_CELDAS), repeat=2)  # Truco Uso de Iteradores y Generadores aplicado
-        for fila, columna in coordenadas:
-            match mapa[fila][columna]:
-                case None:
-                    edificios_disponibles = set(tipos_edificios).copy()
-                    while edificios_disponibles:
-                        edificio_seleccionado = random.choice(list(edificios_disponibles))
-                        match Condiciones.condiciones(edificio_seleccionado, (fila, columna), mapa, NUM_CELDAS, edificios):
-                            case True:
-                                tamanio_edificio = edificios[edificio_seleccionado].tamanio
-                                puede_colocar = False
-                                match tamanio_edificio:
-                                    case [2, 2]:
-                                        if fila + 1 < NUM_CELDAS and columna + 1 < NUM_CELDAS:
-                                            puede_colocar = all(
-                                                mapa[fila + f][columna + c] is _N
-                                                for f, c in itertools.product(range(2), repeat=2)  # Truco Uso de Iteradores y Generadores aplicado
-                                            )
-                                        else:
-                                            print("No se puede colocar el edificio aquí, está fuera de los límites del mapa")
+    eventos = pygame.event.get()
+    evento_quit = any(evento.type == pygame.QUIT for evento in eventos)
+    evento_escape = any(evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE for evento in eventos)
+
+    if evento_quit:
+        pygame.quit()
+        sys.exit()
+
+    if evento_escape:
+        return
+
+    for fila, columna in itertools.product(rango_celdas, repeat=2):
+        match mapa[fila][columna]:
+            case None:
+                edificios_disponibles = tipos_edificios.copy()
+                while edificios_disponibles:
+                    edificio_seleccionado = seleccionar_edificio_aleatorio(edificios_disponibles)
+                    match Condiciones.condiciones(edificio_seleccionado, (fila, columna), mapa, NUM_CELDAS, edificios):
+                        case True:
+                            tamanio_edificio = edificios[edificio_seleccionado].tamanio
+                            puede_colocar = False
+                            match tamanio_edificio:
+                                case [2, 2]:
+                                    match fila + 1 < NUM_CELDAS, columna + 1 < NUM_CELDAS:
+                                        case True, True:
+                                            puede_colocar = all(mapa[fila + f][columna + c] is _N for f, c in itertools.product(range(2), repeat=2))
+                                        case _:
+                                            logger.info("No se puede colocar el edificio aquí, está fuera de los límites del mapa")
                                             edificios_disponibles.remove(edificio_seleccionado)
                                             continue
-                                    case [1, 1] if mapa[fila][columna] is _N:
+                                case [1, 1]:
+                                    if mapa[fila][columna] is _N:
                                         puede_colocar = True
-                                    case _:
-                                        pass
 
-                                match puede_colocar:
-                                    case True:
-                                        hash_edificio = generar_hash(edificio_seleccionado)
-                                        atributos_edificio = edificios[edificio_seleccionado].to_dict()
-                                        coordenadas_edificio = [(fila + f, columna + c) for f, c in itertools.product(range(tamanio_edificio[0]), range(tamanio_edificio[1]))]
-                                        
-                                        celdas_data = read_pickle_file(_C)
+                            match puede_colocar:
+                                case True:
+                                    hash_edificio = generar_hash(edificio_seleccionado)
+                                    atributos_edificio = edificios[edificio_seleccionado].to_dict().copy()
+                                    coordenadas_edificio = [(fila + f, columna + c) for f, c in itertools.product(range(tamanio_edificio[0]), range(tamanio_edificio[1]))]
 
-                                        for x, y in coordenadas_edificio:
-                                            mapa[x][y] = edificio_seleccionado
-                                            celda = next((celda for celda in celdas_data[_Q] if celda['x'] == x and celda['y'] == y), _N)
-                                            match celda:
-                                                case None:
-                                                    pass
-                                                case _:
-                                                    celda[_Y] = edificio_seleccionado
-                                                    celda[_H] = hash_edificio
-                                                    celda[_Z] = atributos_edificio[_Z]
-                                                    celda[_V] = {key: atributos_edificio[key] for key in [_A, _T, _R, _I, _B, _U, _E, _S]}
-                                        
-                                        write_pickle_file(_C, celdas_data)
+                                    celdas_data = read_pickle_file(_C)
+                                    celdas_dict = defaultdict(lambda: _N, {(celda['x'], celda['y']): celda for celda in celdas_data[_Q]})
 
-                                        print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: {coordenadas_edificio}")
-                                        actualizar_area_y_celdas(edificio_seleccionado, (fila, columna), NUM_CELDAS, edificios)
-                                        match tamanio_edificio:
-                                            case [2, 2]:
-                                                Total2 += 1
-                                                Libres -= 4
-                                                Ocupadas += 4
-                                            case [1, 1]:
-                                                Total1 += 1
-                                                Libres -= 1
-                                                Ocupadas += 1
-                                        break
-                                    case False:
-                                        edificios_disponibles.remove(edificio_seleccionado)
-                            case False:
-                                edificios_disponibles.remove(edificio_seleccionado)
-                    else:
-                        print('No se pudo colocar ningún edificio en esta celda')
-                case _:
-                    print(_F)
-            Totales = Total1 + Total2
-            print(f"Total 1x1: {Total1}")
-            print(f"Total 2x2: {Total2}")
-            print(f"Edificios en total: {Totales}")
-            print(f"Espacios ocupados: {Ocupadas}")
-            print(f"Espacios libres: {Libres}")
-            actualizar_pantalla()
-            pygame.event.pump()
+                                    for x, y in coordenadas_edificio:
+                                        mapa[x][y] = edificio_seleccionado
+                                        celda = celdas_dict[(x, y)]
+                                        if celda:
+                                            celda[_Y] = edificio_seleccionado
+                                            celda[_H] = hash_edificio
+                                            celda[_Z] = atributos_edificio[_Z]
+                                            atributos_relevantes = [_A, _T, _R, _I, _B, _U, _E, _S]
+                                            celda[_V] = {key: atributos_edificio[key] for key in atributos_relevantes}
+
+                                    write_pickle_file(_C, celdas_data)
+
+                                    logger.info(f"Edificio {edificio_seleccionado} colocado en las coordenadas: {list(coordenadas_edificio)}")
+                                    actualizar_area_y_celdas(edificio_seleccionado, (fila, columna), NUM_CELDAS, edificios)
+                                    match tamanio_edificio:
+                                        case [2, 2]:
+                                            Total2 += 1
+                                            Libres -= 4
+                                            Ocupadas += 4
+                                        case [1, 1]:
+                                            Total1 += 1
+                                            Libres -= 1
+                                            Ocupadas += 1
+                                    break
+                                case False:
+                                    edificios_disponibles.remove(edificio_seleccionado)
+                        case False:
+                            edificios_disponibles.remove(edificio_seleccionado)
+                else:
+                    logger.info("No se pudo colocar ningún edificio en esta celda")
+            case _:
+                logger.info(_F)
+        Totales = Total1 + Total2
+        logger.info(f"Total 1x1: {Total1}")
+        logger.info(f"Total 2x2: {Total2}")
+        logger.info(f"Edificios en total: {Totales}")
+        logger.info(f"Espacios ocupados: {Ocupadas}")
+        logger.info(f"Espacios libres: {Libres}")
+        logger.info(f"______________________________________________")
+
+        actualizar_pantalla()
+        pygame.event.pump()
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    logger.info(f"Tiempo transcurrido: {elapsed_time:.2f} segundos")
 
 llenar_mapa_aleatoriamente()
 
@@ -266,14 +290,14 @@ while True:
                     x, y = posicion_usuario
                     match edificio_seleccionado:
                         case None:
-                            print(f"Coordenada inicial 1x1: ({x}, {y})")
+                            logger.info(f"Coordenada inicial 1x1: ({x}, {y})")
                         case _:
                             tamanio_edificio = edificios[edificio_seleccionado].tamanio
                             match tamanio_edificio:
                                 case [2, 2]:
-                                    print(f"Coordenadas 2x2: ({x}, {y}), ({x+1}, {y}), ({x}, {y+1}), ({x+1}, {y+1})")
+                                    logger.info(f"Coordenadas 2x2: ({x}, {y}), ({x+1}, {y}), ({x}, {y+1}), ({x+1}, {y+1})")
                                 case [1, 1]:
-                                    print(f"Coordenada 1x1: ({x}, {y})")
+                                    logger.info(f"Coordenada 1x1: ({x}, {y})")
                                 case _:
                                     pass          
 
@@ -293,12 +317,12 @@ while True:
                     actualizar_seleccion()
                     menu.toggle_menu()
                     actualizar_pantalla()
-                    print(f"{edificio_seleccionado} seleccionado")
+                    logger.info(f"{edificio_seleccionado} seleccionado")
 
                 if evento.key in (pygame.K_KP_PLUS, pygame.K_PLUS):
                     match edificio_seleccionado:
                         case None:
-                            print('Debe seleccionar un edificio')
+                            logger.info(f"Debe seleccionar un edificio")
                         case _:
                             if Condiciones.condiciones(edificio_seleccionado, posicion_usuario, mapa, NUM_CELDAS, edificios):
                                 tamanio_edificio = edificios[edificio_seleccionado].tamanio
@@ -308,7 +332,7 @@ while True:
                                     case [2, 2] if posicion_usuario[0] + 1 < NUM_CELDAS and posicion_usuario[1] + 1 < NUM_CELDAS:
                                         puede_colocar = all(
                                             mapa[posicion_usuario[0] + f][posicion_usuario[1] + c] is _N
-                                            for f, c in itertools.product(range(2), repeat=2)  # Truco Uso de Iteradores y Generadores aplicado
+                                            for f, c in itertools.product(range(2), repeat=2)
                                         )
                                     case [1, 1] if mapa[posicion_usuario[0]][posicion_usuario[1]] is _N:
                                         puede_colocar = True
@@ -316,15 +340,14 @@ while True:
                                 match puede_colocar:
                                     case True:
                                         hash_edificio = generar_hash(edificio_seleccionado)
-                                        atributos_edificio = edificios[edificio_seleccionado].to_dict()
+                                        atributos_edificio = edificios[edificio_seleccionado].to_dict().copy()
                                         coordenadas_edificio = [(posicion_usuario[0] + f, posicion_usuario[1] + c) for f, c in itertools.product(range(tamanio_edificio[0]), range(tamanio_edificio[1]))]  # Truco Uso de Iteradores y Generadores aplicado
 
-                                        # Leer el archivo pickle una vez
                                         celdas_data = read_pickle_file(_C)
 
                                         for x, y in coordenadas_edificio:
                                             mapa[x][y] = edificio_seleccionado
-                                            celda = next((celda for celda in celdas_data[_Q] if celda['x'] == x and celda['y'] == y), _N)  # Truco Optimización de Búsqueda en Listas aplicado
+                                            celda = next((celda for celda in celdas_data[_Q] if celda['x'] == x and celda['y'] == y), _N)
                                             match celda:
                                                 case None:
                                                     pass
@@ -337,10 +360,10 @@ while True:
                                         # Escribir el archivo pickle una vez
                                         write_pickle_file(_C, celdas_data)
 
-                                        print(f"Edificio {edificio_seleccionado} colocado en las coordenadas: {coordenadas_edificio}")
+                                        logger.info(f"Edificio {edificio_seleccionado} colocado en las coordenadas: {coordenadas_edificio}")
                                         actualizar_area_y_celdas(edificio_seleccionado, posicion_usuario, NUM_CELDAS, edificios)
                                     case _:
-                                        print(_F)
+                                        logger.info(_F)
                             actualizar_pantalla()
 
                 if evento.key in (pygame.K_KP_MINUS, pygame.K_MINUS):
@@ -359,7 +382,7 @@ while True:
                                         atributos_edificio = edificios[celda[_Y]].to_dict()
                                         break
                             else:
-                                print('No hay edificio en esta celda')
+                                logger.info(f"No hay edificio en esta celda")
                                 continue
 
                             if hash_a_eliminar:
@@ -374,12 +397,12 @@ while True:
 
                                 # Escribir el archivo pickle una vez
                                 write_pickle_file(_C, celdas_data)
-                                print('Edificio eliminado')
+                                logger.info(f"Edificio eliminado")
 
                         case [2, 2]:
-                            print('El cursor debe ser 1x1')
+                            logger.info(f"El cursor debe ser 1x1")
                         case _:
-                            print('El cursor debe ser 1x1')
+                            logger.info(f"El cursor debe ser 1x1")
 
                     actualizar_pantalla()
 
