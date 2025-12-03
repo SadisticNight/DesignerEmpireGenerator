@@ -37,7 +37,7 @@ class ModoManual:
 			def _place_single():self.board[x,y]=bn
 			def _place_multi():iid=self._new_iid_u64();self.board.update({c:(bn,iid)for c in coords})
 			{True:_place_single,False:_place_multi}[is_single_str]()
-		try:print(f"Edificio {bn} construido en {coords[:3]}{"..."if len(coords)>3 else""}")
+		try:print(f"Edificio {bn} construido en {coords[:3]}{'...' if len(coords)>3 else ''}")
 		except Exception:pass
 		self.updated=True;self._emit_hud('placed',bn,x,y,w,h);self._post_city_changed();return selected_building
 	def _act_demolish(self,selected_building):

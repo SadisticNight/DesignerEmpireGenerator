@@ -15,7 +15,7 @@ def _bloque(x,y,w,h):return[]if x<0 or y<0 or x+w>S or y+h>S else[(x+i,y+j)for i
 def _libre(board,coords):return all(c not in board for c in coords)
 def _log_colocado(bn,coords):
 	if LOG_COLOCACIONES:
-		try:lst=list(coords);print(f"Edificio {bn} construido en {lst[:3]}{"..."if len(lst)>3 else""}")
+		try:lst=list(coords);print(f"Edificio {bn} construido en {lst[:3]}{'...' if len(lst)>3 else ''}")
 		except Exception:pass
 def _log_fallo(msg):
 	if LOG_FALLOS:
