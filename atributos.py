@@ -1,39 +1,21 @@
+# atributos.py
+from types import MappingProxyType
+
 class Atributo:
-    """
-    Representa los atributos de un edificio, incluyendo aspectos como color, recursos consumidos o producidos, y tamaño.
+    __slots__=('color','energia','agua','basura','comida','empleos','residentes','tipo','felicidad','ambiente','tamanio','_d','_p')
 
-    Args:
-    color (tuple): Representa el color RGB del edificio.
-    energia, agua, basura, comida (int): Representan los recursos consumidos o producidos.
-    empleos, residentes (int): Indican la cantidad de empleos disponibles y la capacidad residencial.
-    tipo (str): El tipo del edificio (comercio, industria, etc.).
-    felicidad, ambiente (int): Impacto del edificio en la felicidad y el ambiente.
-    tamaño (tuple): Dimensiones del edificio (ancho, largo).
-    """
-    __slots__ = ['color', 'energia', 'agua', 'basura', 'comida', 'empleos', 'residentes', 'tipo', 'felicidad', 'ambiente', 'tamanio']
+    def __init__(self,color,energia,agua,basura,comida,empleos,residentes,tipo,felicidad,ambiente,tamanio):
+        object.__setattr__(self,'_d',{})  # cache primero
+        object.__setattr__(self,'_p',MappingProxyType(self._d))
+        self.color=color; self.energia=energia; self.agua=agua; self.basura=basura; self.comida=comida
+        self.empleos=empleos; self.residentes=residentes; self.tipo=tipo; self.felicidad=felicidad; self.ambiente=ambiente; self.tamanio=tamanio
 
-    def __init__(self, color, energia, agua, basura, comida, empleos, residentes, tipo, felicidad, ambiente, tamanio):
-        if isinstance(color, (list, tuple)) and all(isinstance(c, int) for c in color):
-            self.color = tuple(color)
-        else:
-            raise ValueError("El color debe ser una tupla o lista de enteros")
-        
-        self.energia = energia
-        self.agua = agua
-        self.basura = basura
-        self.comida = comida
-        self.empleos = empleos
-        self.residentes = residentes
-        self.tipo = tipo
-        self.felicidad = felicidad
-        self.ambiente = ambiente
-        self.tamanio = tamanio
+    def __setattr__(self,k,v):
+        object.__setattr__(self,k,v)
+        if k in ('color','energia','agua','basura','comida','empleos','residentes','tipo','felicidad','ambiente','tamanio'):
+            try: self._d[k]=v
+            except AttributeError: pass  # durante bootstrap
 
-    def to_dict(self):
-        """
-        Convierte los atributos del edificio a un diccionario.
-
-        Returns:
-        dict: Diccionario con los atributos del edificio.
-        """
-        return {slot: getattr(self, slot) for slot in self.__slots__}
+    @property
+    def to_dict(self):  # O(1) sin copias
+        return self._p
