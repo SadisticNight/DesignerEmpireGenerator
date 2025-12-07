@@ -28,7 +28,7 @@ REQ_ADJ_BY_BN={}
 
 def nombre_en(board,pos):
     v=board.get(pos)
-    if v is None:return
+    if v is None:return None
     NAME_READERS={tuple:lambda t:t[0],str:lambda s:s}
     return NAME_READERS.get(type(v),lambda _:None)(v)
 
@@ -50,8 +50,24 @@ def hay_tipo_adjacente(board,bloque,tipo_objetivo,incluir_diagonales=True):
     return any((bn:=nombre_en(board,pos))is not None and bn.lower()==tipo_objetivo
                for pos in vecinos_de_bloque(bloque,incluir_diagonales))
 
+# --- NUEVA RESTRICCION: ESPACIADO DE SUELOS ---
+def validar_distancia_suelo(board, x, y):
+    """
+    Impone el patron 1001.
+    Revisa un radio de 2 celdas. Si encuentra otro 'suelo' en ese rango, retorna False.
+    """
+    r = 2
+    for dx in range(-r, r + 1):
+        for dy in range(-r, r + 1):
+            if dx == 0 and dy == 0: continue # Soy yo mismo
+            nx, ny = x + dx, y + dy
+            # Si se sale del mapa, ignoramos (o podemos ser estrictos, aqui ignoramos)
+            if 0 <= nx < S and 0 <= ny < S:
+                if nombre_en(board, (nx, ny)) == 'suelo':
+                    return False # Violacion: Suelo demasiado cerca
+    return True
+
 def es_activo(board,nombre,bloque):
-    # Activo SOLO por prerrequisitos (suelo/decoración). No depende de recursos.
     bn=nombre.lower()
     if not REQ_ADJ_BY_BN:
         for n in NECESITA_SUELO|NECESITA_DECORACION|SERVICIOS|PROVEEDORES|{'suelo','decoracion','demoler'}:
