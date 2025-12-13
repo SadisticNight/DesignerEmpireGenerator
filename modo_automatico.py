@@ -3,7 +3,7 @@ from __future__ import annotations
 import os,time,threading,jax,math
 import jax.numpy as jnp
 from config import BOARD_SIZE
-import edificios,bd_celdas
+import edificios
 from ml_policy import Policy
 import scorer_jax as scorer
 import restricciones as R
@@ -20,18 +20,6 @@ STATS_CACHE={k:edificios.edificios[k] for k in edificios.edificios if k in ACTIO
 CURR_SIZE=20; CURR_GROWTH=5; SCORE_GOAL=80.0
 CHUNK_SIZE=20
 SERVICE_RADIUS={'policia':15,'bombero':15,'colegio':12,'hospital':12,'decoracion':6}
-
-class RealtimeStats:
-    def __init__(self):
-        self.totalResidentes=0; self.totalEmpleos=0
-        self.totalEmpleosIndustria=0; self.totalEmpleosComercio=0
-        self.porcentajeIndustria=0.0; self.porcentajeComercio=0.0
-        self.desequilibrioLaboral=0
-        self.energiaTotal=0; self.energiaUsada=0
-        self.aguaTotal=0; self.aguaUsada=0
-        self.comidaTotal=0; self.comidaUsada=0
-        self.basuraTotal=0; self.basuraUsada=0
-        self.ecologiaTotal=0; self.felicidadTotal=0
 
 def _get_chunk_rect(idx):
     chunks_per_row=S//CHUNK_SIZE
@@ -56,7 +44,8 @@ class ModoAutomatico:
     __slots__=('board','running','thread','lock','agent','occ','jax_maps','steps',
                'rng_key','buf_o','buf_a','buf_r','buf_u','buf_v',
                'chunk_idx','last_score','baseline','cnt','active_mask',
-               'last_pos','rep_count','blacklist','latest_ui_stats')
+               'last_pos','rep_count','blacklist',
+               'stuck_steps','last_score_check')
     
     def __init__(self,board,lock=None):
         self.board=board; self.lock=lock or threading.Lock()
@@ -67,10 +56,10 @@ class ModoAutomatico:
         self.cnt={k:0 for k in ACTION_SET if k!='demoler'}
         self.active_mask={}
         self.last_pos=None; self.rep_count=0; self.blacklist=set()
-        self.latest_ui_stats = RealtimeStats()
+        self.stuck_steps=0; self.last_score_check=0.0
         self.agent=Policy(action_count=NA,obs_dim=3+NA,seed=42,hidden=128)
         self.buf_o=[]; self.buf_a=[]; self.buf_r=[]; self.buf_u=[]; self.buf_v=[]
-        try: self.agent.load(POLICY_ROOT)
+        try: self.agent.load('ml_data/policy/latest.ckpt')
         except: pass
         self._sync_full()
 
@@ -138,32 +127,16 @@ class ModoAutomatico:
         for (ax,ay,abn) in adj:
             self._update_single_state(abn,ax,ay)
 
-    def _calculate_stats_for_ui(self):
-        s = RealtimeStats()
-        for (x,y), active in self.active_mask.items():
-            if not active: continue
-            v = self.board[(x,y)]; bn = v[0] if isinstance(v,tuple) else str(v)
-            if bn in STATS_CACHE:
-                d = STATS_CACHE[bn]
-                s.totalResidentes += d.residentes
-                s.totalEmpleos += d.empleos
-                s.energiaTotal += max(0, d.energia); s.energiaUsada += min(0, d.energia)
-                s.aguaTotal += max(0, d.agua);       s.aguaUsada += min(0, d.agua)
-                s.comidaTotal += max(0, d.comida);   s.comidaUsada += min(0, d.comida)
-                s.basuraTotal += max(0, d.basura);   s.basuraUsada += min(0, d.basura)
-                s.ecologiaTotal += d.ambiente
-                s.felicidadTotal += d.felicidad
-                t = str(d.tipo.value).lower() if hasattr(d.tipo,'value') else str(d.tipo).lower()
-                if t=='industria': s.totalEmpleosIndustria += d.empleos
-                elif t=='comercio': s.totalEmpleosComercio += d.empleos
-        s.desequilibrioLaboral = s.totalResidentes - s.totalEmpleos
-        if s.totalEmpleos > 0:
-            s.porcentajeIndustria = (s.totalEmpleosIndustria / s.totalEmpleos) * 100
-            s.porcentajeComercio = (s.totalEmpleosComercio / s.totalEmpleos) * 100
-        self.latest_ui_stats = s
-
-    def get_ui_data(self):
-        with self.lock: return self.latest_ui_stats
+    # NUEVO METODO PARA QUE LA UI SEPA QUE PINTAR DE BLANCO
+    def get_inactive_ids(self):
+        with self.lock:
+            s = set()
+            for (x,y), active in self.active_mask.items():
+                if not active: 
+                    v = self.board.get((x,y))
+                    if isinstance(v, tuple): s.add(v[1])
+                    else: s.add((x,y))
+            return s
 
     def _get_full_stats(self):
         res=0; jobs=0; ind=0; com=0
@@ -238,7 +211,6 @@ class ModoAutomatico:
 
     def _check_survival(self):
         inactives=[k for k,v in self.active_mask.items() if not v]
-        
         is_crisis_overload = len(inactives) >= 10
         
         if inactives:
@@ -265,14 +237,13 @@ class ModoAutomatico:
                     mode,tx,ty = self._find_spot_in_chunk(nw,nh)
                     if mode=='build': return 'residencia',tx,ty
                     elif mode=='demolish': return 'demoler',tx,ty
-                    
-                    if is_crisis_overload:
-                        break
+                    if is_crisis_overload: break
                     continue 
 
                 fix_bn=None
                 if miss_suelo: fix_bn='suelo'
                 elif miss_decor: fix_bn='decoracion'
+                
                 if fix_bn:
                     is_crit=bn in ('agua','lecheria','refineria','depuradora')
                     action,fx,fy=self._find_fix_spot(x,y,w,h,allow_demolish=is_crit)
@@ -359,7 +330,6 @@ class ModoAutomatico:
                 del self.active_mask[(x,y)]
             w,h=_tam(old_bn)
             scorer.occ_mark_clear(self.occ,x,y,w,h)
-            bd_celdas.parchear_celda_en_disco(x,y,0)
             self._trigger_neighbors(x,y,w,h)
             return True
         elif bn=='suelo':
@@ -372,7 +342,6 @@ class ModoAutomatico:
             w,h=_tam(bn)
             scorer.occ_mark_place(self.occ,x,y,w,h)
             self._update_single_state(bn,x,y)
-            bd_celdas.parchear_celda_en_disco(x,y,BN_TO_ID.get(bn,0))
             self._trigger_neighbors(x,y,w,h)
             return True
         else:
@@ -382,15 +351,29 @@ class ModoAutomatico:
             w,h=_tam(bn)
             scorer.occ_mark_place(self.occ,x,y,w,h)
             self._update_single_state(bn,x,y)
-            bd_celdas.parchear_celda_en_disco(x,y,BN_TO_ID.get(bn,0))
             self._trigger_neighbors(x,y,w,h)
             return True
 
     def simulation_step(self):
         with self.lock:
+            if self.steps > 0 and self.steps % 200 == 0:
+                score_diff = abs(self.last_score - self.last_score_check)
+                if score_diff < 5.0: self.stuck_steps += 200
+                else: self.stuck_steps = 0
+                self.last_score_check = self.last_score
+
+            if self.stuck_steps > 1000:
+                self.stuck_steps = 0
+                import random
+                x0, y0, x1, y1 = _get_chunk_rect(self.chunk_idx)
+                tx, ty = random.randint(x0, x1-1), random.randint(y0, y1-1)
+                self._act_fast('demoler', tx, ty, force_replace=True)
+                return 
+
             self._apply_labor_constraints()
-            self._calculate_stats_for_ui()
             cur_sc=self._calc_complex_score()
+            self.last_score = cur_sc
+            
             obs=_obs_fast(self.jax_maps,self.cnt,cur_sc)
             help_bn,hx,hy=self._check_survival()
             if help_bn:
@@ -400,7 +383,6 @@ class ModoAutomatico:
                     self.last_pos = (hx,hy)
                     self.rep_count = 0
                 if self.rep_count > 10:
-                    print(f"[AUTO] Bucle detectado en {hx},{hy}. Blacklisting.")
                     self.blacklist.add((hx,hy))
                     self.rep_count = 0
                     help_bn,hx,hy = self._check_survival()
@@ -429,7 +411,6 @@ class ModoAutomatico:
                 if self.chunk_idx<(S//CHUNK_SIZE)**2-1:
                     self.chunk_idx+=1; r+=100.0
                     self.blacklist.clear()
-                    print(f"[AUTO] CONDICIONES CUMPLIDAS! Desbloqueando Lote {self.chunk_idx}")
             self.buf_o.append(obs); self.buf_a.append(ai); self.buf_r.append(r)
             self.buf_u.append(float(u)); self.buf_v.append(float(v))
             if len(self.buf_r)>=128:

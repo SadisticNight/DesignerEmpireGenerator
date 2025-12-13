@@ -27,7 +27,10 @@ COL_P1=BACKGROUND_COLOR; COL_P3=BACKGROUND_COLOR
 COL_SEP=60,60,60; COL_TEXT=230,230,230
 COL_BTN=55,55,55; COL_BH=75,75,75; COL_BB=90,90,90
 COL_ACTIVE=76,194,255; STATS_BG=BACKGROUND_COLOR
-COL_DIM=70,70,70
+
+COL_DIM=70,70,70 
+COL_INACTIVE=255,255,255 # BLANCO PARA INACTIVOS
+
 LOCK_PROVIDERS={'energia':'refineria','agua':'agua','comida':'lecheria','basura':'depuradora'}
 
 t_stats=[]
@@ -44,6 +47,7 @@ HIGHLIGHT_MS=950
 NS_PER_MS=1000000
 _DIRTY_CELLS=set()
 _FORCE_FULL_REPAINT=True
+inactive_ids_from_ai=set()
 
 def _button_rect():return pygame.Rect(BXS,(P1H-BSZ[1])//2,*BSZ)
 def _u64(h):
@@ -52,12 +56,32 @@ def _u64(h):
 def _is_anchor(h):h=_u64(h);return bool(h)and h&255==0
 
 def _calc_lock_resources(s):
+    if not s: return set()
     return {k for k,v in {
         'energia': s.energiaTotal+s.energiaUsada,
         'agua': s.aguaTotal+s.aguaUsada,
         'comida': s.comidaTotal+s.comidaUsada,
         'basura': s.basuraTotal+s.basuraUsada
     }.items() if v < 0}
+
+def _recalc_ui_stats():
+    board_snapshot = None
+    lk = globals().get('_BOARD_LOCK')
+    try:
+        if lk:
+            with lk: board_snapshot = board.copy()
+        else:
+            board_snapshot = board.copy()
+            
+        if board_snapshot is not None:
+            bd_celdas.update_celdas_bin(board_snapshot, lock_resources=lock_resources_ui)
+            
+        s1 = StatsProcessor().process()
+        lr = _calc_lock_resources(s1)
+        return lr, s1
+    except Exception as e:
+        print(f"[UI] Error Stats (Ignorado): {e}")
+        return set(), None
 
 def _fmt_stats(s):
     if not s: return ["Cargando..."]
@@ -97,20 +121,32 @@ def dibujar_tablero(p,show_player,*,dirty_only):
         p.fill(BACKGROUND_COLOR)
         for((x,y),b)in _snapshot_all_items():
             name=b[0]if isinstance(b,tuple)else b
-            is_active = True
-            if name not in ('suelo', 'decoracion'):
+            
+            is_active_vis = True
+            if not auto_mode and name not in ('suelo', 'decoracion'):
                 try:
                     w,h = 1,1
                     if name in e: w,h = map(int, e[name].tamanio)
                     bloque = set((x+i, y+j) for i in range(w) for j in range(h))
-                    is_active = restricciones.es_activo(board, name, bloque)
+                    is_active_vis = restricciones.es_activo(board, name, bloque)
                 except: pass
             
-            is_dimmed = not is_active
+            is_active_ai = True
+            if auto_mode:
+                if isinstance(b, tuple): 
+                    if b[1] in inactive_ids_from_ai: is_active_ai = False
+                else: 
+                    if (x,y) in inactive_ids_from_ai: is_active_ai = False
+
+            is_dimmed = not (is_active_ai if auto_mode else is_active_vis)
+
             if allow and name.lower() not in allow and name.lower() not in ALLOW_STATIC:
                 is_dimmed = True
 
-            col = e[name].color if (name in e and not is_dimmed) else COL_DIM
+            if is_dimmed: col = COL_INACTIVE
+            elif name in e: col = e[name].color
+            else: col = COL_DIM
+
             rect(p,col,(x*cs,y*cs+y0,cs,cs))
     else:
         wanted=set(_DIRTY_CELLS)
@@ -133,7 +169,10 @@ def dibujar_tablero(p,show_player,*,dirty_only):
                 if allow and name.lower() not in allow and name.lower() not in ALLOW_STATIC:
                     is_dimmed = True
 
-                col = e[name].color if (name in e and not is_dimmed) else COL_DIM
+                if is_dimmed: col = COL_INACTIVE
+                elif name in e: col = e[name].color
+                else: col = COL_DIM
+
                 rect(p,col,(x*cs,y*cs+y0,cs,cs))
         _DIRTY_CELLS.clear()
         
@@ -179,7 +218,7 @@ def _set_auto_mode(enable,menu):
         except:pass
 
 def main():
-    global t_stats,t_stats_surfaces,selected_building,lock_resources_ui,_BOARD_LOCK,_FORCE_FULL_REPAINT,_last_player_pos
+    global t_stats,t_stats_surfaces,selected_building,lock_resources_ui,_BOARD_LOCK,_FORCE_FULL_REPAINT,_last_player_pos, inactive_ids_from_ai
     pygame.init();flags=pygame.HWSURFACE|pygame.DOUBLEBUF
     w,h=WINDOW_SIZE+STATS_PANEL_W,WINDOW_SIZE+P1H+P3H
     try:screen=pygame.display.set_mode((w,h),flags,vsync=1)
@@ -202,8 +241,7 @@ def main():
         sys.exit(0)
 
     try:
-        bd_celdas.update_celdas_bin(board, lock_resources=set())
-        s=StatsProcessor().process()
+        lr,s=_recalc_ui_stats()
         t_stats=_fmt_stats(s);_update_stats_surfaces(font)
     except:pass
 
@@ -218,22 +256,32 @@ def main():
     def _on_city_changed(e):
         global lock_resources_ui,t_stats,_FORCE_FULL_REPAINT
         if not auto_mode:
-            bd_celdas.update_celdas_bin(board, lock_resources=lock_resources_ui)
-            s=StatsProcessor().process()
-            lock_resources_ui=_calc_lock_resources(s) if s else set()
-            t_stats=_fmt_stats(s);_update_stats_surfaces(font)
+            lr,s=_recalc_ui_stats()
+            lock_resources_ui=lr;t_stats=_fmt_stats(s);_update_stats_surfaces(font)
             _FORCE_FULL_REPAINT=True;manual.updated=False
 
     def _toggle_auto():_set_auto_mode(not auto_mode,menu)
+    
+    def ia_sigue_trabajando():
+        return auto.running or (auto.thread and auto.thread.is_alive())
+
     def _key_default(e):
         global selected_building
+        if ia_sigue_trabajando(): return
+
         if auto_mode:return
         if menu.esta_abierto():
             op=menu.manejar_evento(e)
             if op:selected_building=op
         else:
-            sel=manual.handle_event(e,menu,selected_building)
-            if sel!=selected_building:selected_building=sel
+            # BLINDAJE: Si el guardado falla, NO cerramos el juego.
+            try:
+                with _BOARD_LOCK:
+                    sel=manual.handle_event(e,menu,selected_building)
+                if sel!=selected_building:selected_building=sel
+            except Exception as save_error:
+                print(f"[MANUAL] Error al guardar/procesar evento: {save_error}")
+                # No hacemos raise, el juego sigue vivo
 
     key_handlers={pygame.K_a:_toggle_auto}
     def _on_keydown(e):(key_handlers.get(e.key)or _key_default)(e)
@@ -255,19 +303,30 @@ def main():
 
             for e in ev_get():
                 try:(handlers.get(e.type)or _noop)(e)
-                except:_cleanup_and_exit()
+                except Exception as ex_loop:
+                    # Capturamos errores de eventos para no cerrar el juego por tonterias
+                    print(f"[LOOP] Error evento: {ex_loop}")
 
-            if not auto_mode and not menu.esta_abierto():manual.update_movement()
             auto.actualizar(1 if auto_mode else 0, 0)
+
+            # Si acabamos de apagar el auto, forzamos sync a disco
+            if not auto.running and getattr(auto, 'thread', None) and not auto.thread.is_alive():
+                 # (Aqui podria ir una sync extra si fuera necesaria)
+                 pass
+
+            if not auto_mode and not menu.esta_abierto() and not ia_sigue_trabajando():
+                manual.update_movement()
             
             if auto_mode:
                 now=time.time()
                 if now-last_auto_stat_time > 0.5:
-                    s = auto.get_ui_data() # Lectura directa RAM
-                    t_stats=_fmt_stats(s);_update_stats_surfaces(font)
-                    lock_resources_ui=_calc_lock_resources(s)
-                    last_auto_stat_time=now
-                    _FORCE_FULL_REPAINT=True
+                    lr,s=_recalc_ui_stats()
+                    if s:
+                        t_stats=_fmt_stats(s);_update_stats_surfaces(font)
+                        lock_resources_ui=lr
+                        inactive_ids_from_ai = auto.get_inactive_ids()
+                        last_auto_stat_time=now
+                        _FORCE_FULL_REPAINT=True
 
             try:
                 use_dirty=not _FORCE_FULL_REPAINT and bool(_DIRTY_CELLS) and not auto_mode
