@@ -2,13 +2,17 @@
 from __future__ import annotations
 import os,time,threading,jax,math
 import jax.numpy as jnp
+import numpy as np 
+import random
 from config import BOARD_SIZE
 import edificios
 from ml_policy import Policy
 import scorer_jax as scorer
 import restricciones as R
+from mapa_calor import AnalistaTerreno
 
 S=int(BOARD_SIZE)
+
 ACTION_SET=('residencia','taller_togas','herreria','refineria','lecheria','agua',
             'depuradora','decoracion','policia','bombero','colegio','hospital',
             'suelo','demoler')
@@ -17,15 +21,8 @@ NA=len(ACTION_SET)
 BN_TO_ID={k:i+1 for i,k in enumerate(ACTION_SET) if k!='demoler'}; BN_TO_ID['suelo']=0
 
 STATS_CACHE={k:edificios.edificios[k] for k in edificios.edificios if k in ACTION_SET and k!='demoler' and k!='suelo'}
-CURR_SIZE=20; CURR_GROWTH=5; SCORE_GOAL=80.0
 CHUNK_SIZE=20
-SERVICE_RADIUS={'policia':15,'bombero':15,'colegio':12,'hospital':12,'decoracion':6}
-
-def _get_chunk_rect(idx):
-    chunks_per_row=S//CHUNK_SIZE
-    row=idx//chunks_per_row; col=idx%chunks_per_row
-    x0,y0=col*CHUNK_SIZE,row*CHUNK_SIZE
-    return x0,y0,x0+CHUNK_SIZE,y0+CHUNK_SIZE
+_TODOS8 = [(-1,0),(1,0),(0,-1),(0,1), (-1,-1),(-1,1),(1,-1),(1,1)]
 
 def _obs_fast(maps,counts,score=0.0):
     s=jnp.sum; m=maps
@@ -37,28 +34,48 @@ def _rew_fast(maps):
     s=jnp.sum; m=maps
     return float(s(m['felicidad'])*1.0+s(m['seguridad'])*0.5+s(m['ambiente'])*0.2)
 
-def _tam(bn): return map(int,ED[bn].tamanio) if bn in ED else(1,1)
-ED=edificios.edificios
+def _get_chunk_rect(idx):
+    chunks_per_row=S//CHUNK_SIZE
+    row=idx//chunks_per_row; col=idx%chunks_per_row
+    x0,y0=col*CHUNK_SIZE,row*CHUNK_SIZE
+    return x0,y0,x0+CHUNK_SIZE,y0+CHUNK_SIZE
+
+def _tam(bn): 
+    if bn in edificios.edificios:
+        try:
+            tamanio_list = list(edificios.edificios[bn].tamanio)
+            return tuple(map(int, tamanio_list))
+        except Exception:
+            return (1, 1)
+    return (1, 1)
+
 
 class ModoAutomatico:
     __slots__=('board','running','thread','lock','agent','occ','jax_maps','steps',
-               'rng_key','buf_o','buf_a','buf_r','buf_u','buf_v',
-               'chunk_idx','last_score','baseline','cnt','active_mask',
-               'last_pos','rep_count','blacklist',
-               'stuck_steps','last_score_check')
+               'rng_key','chunk_idx','cnt','active_mask','blacklist',
+               'stuck_steps','analista_terreno', 'heatmap_cache', 'objetivo_actual',
+               'foco_construccion', 'cache_suelos', 'cache_decos') 
     
     def __init__(self,board,lock=None):
         self.board=board; self.lock=lock or threading.Lock()
         self.running=False; self.thread=None; self.steps=0
         self.rng_key=jax.random.PRNGKey(int(time.time()))
         self.occ=scorer.make_occupancy(); self.jax_maps=scorer.make_maps()
-        self.chunk_idx=0; self.last_score=0.0; self.baseline=0.0
+        self.chunk_idx=0; 
         self.cnt={k:0 for k in ACTION_SET if k!='demoler'}
         self.active_mask={}
-        self.last_pos=None; self.rep_count=0; self.blacklist=set()
-        self.stuck_steps=0; self.last_score_check=0.0
+        self.blacklist=set()
+        self.stuck_steps=0
+        
+        self.analista_terreno = AnalistaTerreno()
+        self.heatmap_cache = None
+        self.objetivo_actual = "Inicializando..."
+        self.foco_construccion = None
+        
+        self.cache_suelos = [] 
+        self.cache_decos = []
+
         self.agent=Policy(action_count=NA,obs_dim=3+NA,seed=42,hidden=128)
-        self.buf_o=[]; self.buf_a=[]; self.buf_r=[]; self.buf_u=[]; self.buf_v=[]
         try: self.agent.load('ml_data/policy/latest.ckpt')
         except: pass
         self._sync_full()
@@ -68,14 +85,21 @@ class ModoAutomatico:
         self.jax_maps=scorer.make_maps()
         self.cnt={k:0 for k in ACTION_SET if k!='demoler'}
         self.active_mask={}
+        self.cache_suelos = [] 
+        self.cache_decos = []
+        self.blacklist.clear()
+
         for (x,y),v in self.board.items():
             if isinstance(v,tuple):
                 bn=v[0]; w,h=_tam(bn)
                 scorer.occ_mark_place(self.occ,x,y,w,h)
             elif isinstance(v,str):
+                bn=v; w,h=1,1
                 scorer.occ_mark_place(self.occ,x,y,1,1)
-        for (x,y),v in self.board.items():
-            bn=v[0] if isinstance(v,tuple) else str(v)
+            
+            if bn == 'suelo': self.cache_suelos.append((x,y))
+            elif bn == 'decoracion': self.cache_decos.append((x,y))
+            
             self._update_single_state(bn,x,y)
 
     def _update_single_state(self,bn,x,y):
@@ -92,29 +116,6 @@ class ModoAutomatico:
             self.cnt[bn]=max(0,self.cnt.get(bn,0)-1)
             self.active_mask[(x,y)]=False
 
-    def _apply_labor_constraints(self):
-        available_workers = 0
-        job_buildings = []
-        for (x,y), active in self.active_mask.items():
-            if not active: continue
-            v = self.board[(x,y)]; bn = v[0] if isinstance(v,tuple) else str(v)
-            if bn == 'residencia':
-                available_workers += STATS_CACHE[bn].residentes
-            elif bn in STATS_CACHE:
-                t = str(STATS_CACHE[bn].tipo).lower()
-                if 'industria' in t or 'comercio' in t:
-                    job_buildings.append(((x,y), bn, STATS_CACHE[bn].empleos))
-        
-        for (pos, bn, jobs_needed) in job_buildings:
-            if available_workers >= jobs_needed:
-                available_workers -= jobs_needed
-            else:
-                if self.active_mask.get(pos):
-                    x,y = pos
-                    self.jax_maps = scorer.apply_kernel_diff(self.jax_maps, bn, x, y, -1.0)
-                    self.cnt[bn] = max(0, self.cnt.get(bn,0)-1)
-                    self.active_mask[pos] = False
-
     def _trigger_neighbors(self,x,y,w,h):
         adj=set()
         for i in range(-1,w+1):
@@ -127,314 +128,390 @@ class ModoAutomatico:
         for (ax,ay,abn) in adj:
             self._update_single_state(abn,ax,ay)
 
-    # NUEVO METODO PARA QUE LA UI SEPA QUE PINTAR DE BLANCO
     def get_inactive_ids(self):
         with self.lock:
             s = set()
             for (x,y), active in self.active_mask.items():
                 if not active: 
                     v = self.board.get((x,y))
-                    if isinstance(v, tuple): s.add(v[1])
-                    else: s.add((x,y))
+                    if v:
+                        if isinstance(v, tuple): s.add(v[1])
+                        else: s.add((x,y))
             return s
 
+    def get_heatmap(self):
+        if self.heatmap_cache is None: return None
+        matriz = np.array(self.heatmap_cache, dtype=np.float32)
+        if np.max(matriz) > 0:
+            matriz = matriz / np.max(matriz)
+        return matriz
+
     def _get_full_stats(self):
-        res=0; jobs=0; ind=0; com=0
-        bal={'energia':0,'agua':0,'comida':0,'basura':0}
-        active_count=sum(self.active_mask.values())
-        total_count=0
-        for k,v in self.board.items():
-            if isinstance(v,tuple) or (isinstance(v,str) and v!='suelo'):
-                total_count+=1
-        for (x,y),active in self.active_mask.items():
-            if not active: continue
-            v=self.board[(x,y)]; bn=v[0] if isinstance(v,tuple) else str(v)
-            if bn in STATS_CACHE:
-                d=STATS_CACHE[bn]
-                res+=d.residentes; jobs+=d.empleos
-                bal['energia']+=d.energia; bal['agua']+=d.agua
-                bal['comida']+=d.comida; bal['basura']+=d.basura
-                t=str(d.tipo.value).lower() if hasattr(d.tipo,'value') else str(d.tipo).lower()
-                if t=='industria': ind+=d.empleos
-                elif t=='comercio': com+=d.empleos
-        return res,jobs,ind,com,bal,active_count,total_count
-
-    def _find_fix_spot(self,tx,ty,w,h,allow_demolish=False):
-        x0,y0,x1,y1=_get_chunk_rect(self.chunk_idx)
-        candidates=[]
-        for i in range(-2,w+2):
-            for j in range(-2,h+2):
-                nx,ny=tx+i,ty+j
-                if nx<0 or nx>=S or ny<0 or ny>=S: continue
-                if (nx,ny)==(tx,ty): continue
-                if (nx,ny) in self.blacklist: continue
-                penalty=0
-                occupied=(nx,ny) in self.board
-                if occupied:
-                    if not allow_demolish: continue
-                    v=self.board[(nx,ny)]
-                    bn_n=v[0] if isinstance(v,tuple) else str(v)
-                    if bn_n in ('agua','lecheria','refineria','depuradora','policia','bombero','colegio','hospital'):
-                        continue
-                    penalty+=500
-                in_chunk=(x0<=nx<x1 and y0<=ny<y1)
-                if not in_chunk: penalty+=1000
-                candidates.append((penalty,nx,ny,occupied))
-        if candidates:
-            candidates.sort()
-            best=candidates[0]
-            if best[3]: return 'demolish',best[1],best[2]
-            return 'build',best[1],best[2]
-        return None,None,None
-
-    def _find_spot_in_chunk(self,w_need,h_need):
-        x0,y0,x1,y1=_get_chunk_rect(self.chunk_idx)
-        best_demolish=None
-        for x in range(x0,x1-w_need+1):
-            for y in range(y0,y1-h_need+1):
-                if (x,y) in self.blacklist: continue
-                is_free=True
-                for i in range(w_need):
-                    for j in range(h_need):
-                        if (x+i,y+j) in self.board:
-                            is_free=False
-                            v=self.board[(x+i,y+j)]
-                            bn=v[0] if isinstance(v,tuple) else str(v)
-                            if bn not in ('agua','lecheria','refineria','depuradora','policia','bombero','colegio','hospital'):
-                                best_demolish=(x+i,y+j)
-                            break
-                    if not is_free: break
-                if is_free: return 'build',x,y
-        if best_demolish:
-            return 'demolish',best_demolish[0],best_demolish[1]
-        return None,None,None
-
-    def _check_survival(self):
-        inactives=[k for k,v in self.active_mask.items() if not v]
-        is_crisis_overload = len(inactives) >= 10
+        res = 0; jobs = 0; ind = 0; com = 0
+        bal = {'energia': 0, 'agua': 0, 'comida': 0, 'basura': 0}
+        active_count = sum(self.active_mask.values())
+        total_count = 0
         
-        if inactives:
-            for (x,y) in inactives:
-                v=self.board.get((x,y))
-                if not v: continue
-                bn=v[0] if isinstance(v,tuple) else str(v)
-                if bn in ('suelo','demoler'): continue
-                
-                is_job = False
-                if bn in STATS_CACHE:
-                    t = str(STATS_CACHE[bn].tipo).lower()
-                    if 'industria' in t or 'comercio' in t: is_job = True
-                
-                w,h=_tam(bn)
-                coords=[(x+i,y+j) for i in range(w) for j in range(h)]
-                req_suelo = R.requiere_suelo(bn)
-                req_decor = R.requiere_decoracion(bn)
-                miss_suelo = req_suelo and not R.hay_tipo_adjacente(self.board,coords,'suelo',True)
-                miss_decor = req_decor and not R.hay_tipo_adjacente(self.board,coords,'decoracion',True)
-                
-                if not miss_suelo and not miss_decor and is_job:
-                    nw,nh = _tam('residencia')
-                    mode,tx,ty = self._find_spot_in_chunk(nw,nh)
-                    if mode=='build': return 'residencia',tx,ty
-                    elif mode=='demolish': return 'demoler',tx,ty
-                    if is_crisis_overload: break
-                    continue 
-
-                fix_bn=None
-                if miss_suelo: fix_bn='suelo'
-                elif miss_decor: fix_bn='decoracion'
-                
-                if fix_bn:
-                    is_crit=bn in ('agua','lecheria','refineria','depuradora')
-                    action,fx,fy=self._find_fix_spot(x,y,w,h,allow_demolish=is_crit)
-                    if action=='build': return fix_bn,fx,fy
-                    elif action=='demolish': return 'demoler',fx,fy
-                    elif action is None and not is_crit: return 'demoler',x,y
-
-                if is_crisis_overload and not fix_bn:
-                    break
-
-        res,jobs,ind,com,bal,active_count,total_count=self._get_full_stats()
-        fixes={'agua':'agua','comida':'lecheria','energia':'refineria','basura':'depuradora'}
-        for res,val in bal.items():
-            if val<0:
-                needed_bn=fixes[res]
-                nw,nh=_tam(needed_bn)
-                mode,tx,ty=self._find_spot_in_chunk(nw,nh)
-                if mode=='build': return needed_bn,tx,ty
-                elif mode=='demolish': return 'demoler',tx,ty
-
-        srv_locs={k:[] for k in SERVICE_RADIUS}
-        residences=[]
-        for (x,y),active in self.active_mask.items():
-            if active:
-                v=self.board[(x,y)]; bn=v[0] if isinstance(v,tuple) else str(v)
-                if bn in srv_locs: srv_locs[bn].append((x,y))
-                elif bn=='residencia': residences.append((x,y))
-        
-        for rx,ry in residences:
-            for s_type,s_rad in SERVICE_RADIUS.items():
-                covered=False
-                for sx,sy in srv_locs[s_type]:
-                    if abs(rx-sx)+abs(ry-sy)<=s_rad:
-                        covered=True; break
-                if not covered:
-                    nw,nh=_tam(s_type)
-                    action,fx,fy=self._find_fix_spot(rx,ry,1,1,allow_demolish=False)
-                    if action=='build': return s_type,fx,fy
-
-        dec_locs=[]
-        for (x,y),active in self.active_mask.items():
-            if active:
-                v=self.board[(x,y)]; bn=v[0] if isinstance(v,tuple) else str(v)
-                if bn=='decoracion': dec_locs.append((x,y))
-        
-        for rx,ry in residences:
-            covered=False
-            for dx,dy in dec_locs:
-                if abs(rx-dx)+abs(ry-dy)<=6:
-                    covered=True; break
-            if not covered:
-                action,fx,fy=self._find_fix_spot(rx,ry,1,1,allow_demolish=False)
-                if action=='build': return 'decoracion',fx,fy
-
-        return None,None,None
-
-    def _calc_complex_score(self):
-        res,jobs,ind,com,bal,active,total=self._get_full_stats()
-        score=float(res)*1.0
-        score-=abs(res-jobs)*5.0
-        score-=(total-active)*50.0
-        if jobs>0:
-            score-=(abs(ind/jobs - 1/3)+abs(com/jobs - 2/3))*200.0
-        defic=sum(abs(v) for v in bal.values() if v<0)
-        score-=defic*10.0
-        return score
-
-    def _act_fast(self,bn,x,y,force_replace=False):
-        if bn != 'demoler' and bn != 'suelo':
-            w,h = _tam(bn)
-            coords = [(x+i, y+j) for i in range(w) for j in range(h)]
-            if R.requiere_suelo(bn) and not R.hay_tipo_adjacente(self.board, coords, 'suelo', True):
-                return False
-            if R.requiere_decoracion(bn) and not R.hay_tipo_adjacente(self.board, coords, 'decoracion', True):
-                return False
-
-        if bn=='demoler':
-            if (x,y) not in self.board: return False
-            v=self.board.pop((x,y))
-            old_bn=v[0] if isinstance(v,tuple) else str(v)
-            if self.active_mask.get((x,y)):
-                self.jax_maps=scorer.apply_kernel_diff(self.jax_maps,old_bn,x,y,-1.0)
-                self.cnt[old_bn]=max(0,self.cnt.get(old_bn,0)-1)
-                del self.active_mask[(x,y)]
-            w,h=_tam(old_bn)
-            scorer.occ_mark_clear(self.occ,x,y,w,h)
-            self._trigger_neighbors(x,y,w,h)
-            return True
-        elif bn=='suelo':
-            if (x,y) in self.board and not force_replace: return False
-            if not R.validar_distancia_suelo(self.board, x, y):
-                return False
+        for (x,y), v in self.board.items():
+            bn = v[0] if isinstance(v, tuple) else str(v)
+            if bn == 'suelo': continue
+            total_count += 1
             
-            if force_replace and (x,y) in self.board: self._act_fast('demoler',x,y)
-            self.board[(x,y)]=bn
-            w,h=_tam(bn)
-            scorer.occ_mark_place(self.occ,x,y,w,h)
-            self._update_single_state(bn,x,y)
-            self._trigger_neighbors(x,y,w,h)
-            return True
+            if self.active_mask.get((x,y), False):
+                if bn in STATS_CACHE:
+                    d = STATS_CACHE[bn]
+                    if d.energia != 0: bal['energia'] += d.energia
+                    if d.agua != 0: bal['agua'] += d.agua
+                    if d.comida != 0: bal['comida'] += d.comida
+                    if d.basura != 0: bal['basura'] += d.basura
+                    res += d.residentes
+                    jobs += d.empleos
+                    t = str(getattr(d.tipo, 'value', d.tipo)).lower()
+                    if 'industria' in t: ind += d.empleos
+                    elif 'comercio' in t: com += d.empleos
+        
+        return res, jobs, ind, com, bal, active_count, total_count
+
+    def _diagnosticar_necesidad(self):
+        res,jobs,ind,com,bal,active,total = self._get_full_stats()
+        
+        MIN_RECURSO_SEGURO = 16 
+        BUFFER = 50.0
+
+        # --- PRIORIDAD 1: DÉFICIT CRÍTICO (Balance NEGATIVO) ---
+        if bal['energia'] <= 0: return 'refineria'
+        if bal['agua'] <= 0: return 'agua'
+        if bal['comida'] <= 0: return 'lecheria'
+        if bal['basura'] <= 0: return 'depuradora'
+
+        # --- PRIORIDAD 2: CONTEO MÍNIMO (Infraestructura de supervivencia) ---
+        if self.cnt.get('refineria', 0) < MIN_RECURSO_SEGURO: return 'refineria'
+        if self.cnt.get('agua', 0) < MIN_RECURSO_SEGURO: return 'agua'
+        if self.cnt.get('depuradora', 0) < MIN_RECURSO_SEGURO: return 'depuradora'
+        
+        # Lechería es críticamente baja
+        if self.cnt.get('lecheria', 0) < 60: return 'lecheria' 
+        
+        # --- PRIORIDAD 3: DESBALANCE DE EMPLEO (Bloqueo de Residencia) ---
+        # Si la proporción Empleos/Residentes es crítica, construir Empleos.
+        if res > 0 and jobs / res < 0.6: 
+            if self.cnt.get('taller_togas', 0) < 20: return 'taller_togas' 
+            if self.cnt.get('herreria', 0) < 20: return 'herreria'
+
+        # --- PRIORIDAD 4: DÉFICIT DE BUFFER (Balance cerca de 0) ---
+        if bal['energia'] < BUFFER: return 'refineria'
+        if bal['agua'] < BUFFER: return 'agua'
+        if bal['comida'] < BUFFER: return 'lecheria'
+        if bal['basura'] < BUFFER: return 'depuradora'
+        
+        # --- PRIORIDAD FINAL: CRECIMIENTO ---
+        return 'residencia'
+
+    def _buscar_oportunidad_existente(self, bn):
+        w, h = _tam(bn)
+        req_suelo = R.requiere_suelo(bn)
+        req_deco = R.requiere_decoracion(bn)
+        
+        fuente = []
+        if req_suelo:
+            if not self.cache_suelos: return False, None, None
+            fuente = self.cache_suelos
+        elif req_deco:
+            if not self.cache_decos: return False, None, None
+            fuente = self.cache_decos
         else:
-            if (x,y) in self.board and not force_replace: return False
-            if force_replace and (x,y) in self.board: self._act_fast('demoler',x,y)
-            self.board[(x,y)]=bn
-            w,h=_tam(bn)
-            scorer.occ_mark_place(self.occ,x,y,w,h)
-            self._update_single_state(bn,x,y)
-            self._trigger_neighbors(x,y,w,h)
+            return False, None, None
+
+        intentos = min(len(fuente), 50)
+        muestras = random.sample(fuente, intentos)
+
+        for sx, sy in muestras:
+            for dx, dy in _TODOS8:
+                vx, vy = sx + dx, sy + dy
+                if 0 <= vx < S and 0 <= vy < S and (vx, vy) not in self.board:
+                    cabe = True
+                    if w > 1 or h > 1:
+                        for i in range(w):
+                            for j in range(h):
+                                px, py = vx + i, vy + j
+                                if not (0 <= px < S and 0 <= py < S) or (px, py) in self.board:
+                                    cabe = False
+                                    break
+                            if not cabe: break
+                    
+                    if cabe:
+                        cumple_todo = True
+                        coords_edif = [(vx+i, vy+j) for i in range(w) for j in range(h)]
+                        
+                        if req_suelo and req_deco:
+                            if not R.hay_tipo_adjacente(self.board, coords_edif, 'decoracion', True):
+                                cumple_todo = False
+                        
+                        if req_deco and req_suelo:
+                            if not R.hay_tipo_adjacente(self.board, coords_edif, 'suelo', True):
+                                cumple_todo = False
+
+                        if cumple_todo:
+                            return True, vx, vy
+                         
+        return False, None, None
+
+    def _verificar_capas_y_resolver(self, bn, x, y):
+        w, h = _tam(bn)
+        coords_for_check = [(x+i, y+j) for i in range(w) for j in range(h)]
+        total_edificios = self._get_full_stats()[6]
+        
+        # --- CAPA 1: SUELO (Dependencia) ---
+        if R.requiere_suelo(bn):
+            necesita_suelo = not R.hay_tipo_adjacente(self.board, coords_for_check, 'suelo', True)
+            
+            if necesita_suelo:
+                # *** VERIFICACIÓN DE RECURSOS (BLOQUEO DE RESIDENCIA) ***
+                if bn == 'residencia':
+                    stats = self._get_full_stats()
+                    bal = stats[4]
+                    is_critical_deficit = (bal['energia'] <= 0 or bal['agua'] <= 0 or 
+                                           bal['comida'] <= 0 or bal['basura'] <= 0)
+                    
+                    if is_critical_deficit:
+                        print(f"[RECURSOS] Detectado DÉFICIT CRÍTICO. Bloqueando la construcción de '{bn}' en ({x},{y}).")
+                        return False # Falla la colocación, forzando la liberación del foco.
+                
+                
+                # *** LOG DE PREGUNTA SÓLO SI NO HAY DÉFICIT Y SE NECESITA SUELO ***
+                print(f"[PREGUNTA] Voy a ubicar el edificio '{bn}' en ({x},{y}). ¿Le falta SUELO para empezar? SÍ.")
+                vecinos = self._obtener_vecinos_totales(x, y, w, h)
+                
+                # --- LÓGICA DE BYPASS DE DISTANCIA PARA AVANCE (CRÍTICO O CRECIMIENTO) ---
+                es_critico_o_crecimiento = bn in ['refineria', 'agua', 'lecheria', 'depuradora', 'residencia']
+                
+                for nx, ny in vecinos:
+                    if (nx,ny) not in self.board:
+                        
+                        validar_distancia = R.validar_distancia_suelo(self.board, nx, ny)
+                        
+                        # Aplicar el bypass si es un objetivo clave y la restricción de distancia bloquea
+                        if es_critico_o_crecimiento and not validar_distancia:
+                            validar_distancia = True 
+
+                        if validar_distancia:
+                            print(f"[ACCION] ¿Puedo ubicar SUELO en ({nx},{ny}) para satisfacer la dependencia de '{bn}'? SÍ.")
+                            self._act_fast('suelo', nx, ny)
+                            return True
+                return False
+
+        # --- CAPA 2: DECORACION (Dependencia) ---
+        if R.requiere_decoracion(bn):
+            if not R.hay_tipo_adjacente(self.board, coords_for_check, 'decoracion', True):
+                print(f"[PREGUNTA] Voy a ubicar el edificio '{bn}' en ({x},{y}). ¿Le falta DECORACIÓN para empezar? SÍ.")
+                vecinos = self._obtener_vecinos_totales(x, y, w, h)
+                for nx, ny in vecinos:
+                    if (nx,ny) not in self.board:
+                        print(f"[ACCION] ¿Puedo ubicar DECORACIÓN en ({nx},{ny}) para satisfacer la dependencia de '{bn}'? SÍ.")
+                        self._act_fast('decoracion', nx, ny)
+                        return True
+                return False
+
+        # --- CAPA RAIZ: EL EDIFICIO MISMO (Finalidad) ---
+        if (x,y) not in self.board:
+            print(f"[PREGUNTA] ¿Ya resolví todas las dependencias? SÍ. ¿Puedo ubicar el edificio final '{bn}' en ({x},{y})? SÍ.")
+            
+            if not self._act_fast(bn, x, y):
+                 # Si _act_fast falla aquí, es por colisión
+                 return False
+            
             return True
+            
+        return False
+
+    def _obtener_vecinos_totales(self, x, y, w, h):
+        vecinos = set()
+        for i in range(-1, w+1):
+            for j in range(-1, h+1):
+                if 0 <= i < w and 0 <= j < h: continue 
+                nx, ny = x + i, y + j
+                if 0 <= nx < S and 0 <= ny < S:
+                    vecinos.add((nx, ny))
+        return list(vecinos)
+
+    def _act_fast(self,bn,x,y):
+        # El chequeo de ocupación debe ser para todas las celdas del edificio.
+        w, h = _tam(bn)
+        for i in range(w):
+            for j in range(h):
+                if (x + i, y + j) in self.board:
+                    return False
+        
+        # Marcado de todas las celdas para la visualización y las colisiones.
+        for i in range(w):
+            for j in range(h):
+                self.board[(x + i, y + j)] = bn # Ocupa todas las celdas.
+
+        if bn == 'suelo': self.cache_suelos.append((x,y))
+        elif bn == 'decoracion': self.cache_decos.append((x,y))
+            
+        scorer.occ_mark_place(self.occ,x,y,w,h)
+        self._update_single_state(bn,x,y)
+        self._trigger_neighbors(x,y,w,h)
+        return True
 
     def simulation_step(self):
         with self.lock:
-            if self.steps > 0 and self.steps % 200 == 0:
-                score_diff = abs(self.last_score - self.last_score_check)
-                if score_diff < 5.0: self.stuck_steps += 200
-                else: self.stuck_steps = 0
-                self.last_score_check = self.last_score
-
-            if self.stuck_steps > 1000:
-                self.stuck_steps = 0
-                import random
-                x0, y0, x1, y1 = _get_chunk_rect(self.chunk_idx)
-                tx, ty = random.randint(x0, x1-1), random.randint(y0, y1-1)
-                self._act_fast('demoler', tx, ty, force_replace=True)
-                return 
-
-            self._apply_labor_constraints()
-            cur_sc=self._calc_complex_score()
-            self.last_score = cur_sc
+            # 1. VERIFICACIÓN Y DIAGNÓSTICO: SIEMPRE PRIMERO
+            target_bn = self._diagnosticar_necesidad()
+            self.objetivo_actual = target_bn
             
-            obs=_obs_fast(self.jax_maps,self.cnt,cur_sc)
-            help_bn,hx,hy=self._check_survival()
-            if help_bn:
-                if (hx,hy) == self.last_pos:
-                    self.rep_count += 1
+            hizo_algo = False
+            
+            # --- VERIFICACIÓN DE PRIORIDAD CRÍTICA Y ANULACIÓN DE FOCO ---
+            stats = self._get_full_stats()
+            bal = stats[4]
+            is_critical_deficit = (bal['energia'] <= 0 or bal['agua'] <= 0 or 
+                                   bal['comida'] <= 0 or bal['basura'] <= 0)
+            
+            # Si el Bot eligió Residencia (o está enfocado en ella), pero el balance es CRÍTICO, forzar la prioridad.
+            if self.objetivo_actual == 'residencia' and is_critical_deficit:
+                
+                # Re-diagnóstico forzado basado en la realidad visible (IMAGEN)
+                if bal['energia'] <= 0: target_bn = 'refineria'
+                elif bal['agua'] <= 0: target_bn = 'agua'
+                elif bal['comida'] <= 0: target_bn = 'lecheria'
+                elif bal['basura'] <= 0: target_bn = 'depuradora'
+                self.objetivo_actual = target_bn
+                
+            # Si el foco actual es RESIDENCIA y hay déficit, liberarlo inmediatamente.
+            if self.foco_construccion and self.foco_construccion[0] == 'residencia' and is_critical_deficit:
+                 self.foco_construccion = None
+                 # La impresión de este log ahora ocurre en la capa de suelo si pasa el primer check
+                 # print(f"[CRÍTICO] Foco de RESIDENCIA en {self.foco_construccion[1:] if self.foco_construccion else 'N/A'} anulado por DÉFICIT. Redirigiendo a {target_bn}.")
+
+
+            # 2. MANEJO DE FOCO ACTUAL (Subordinado a la necesidad crítica)
+            if self.foco_construccion:
+                f_bn, f_x, f_y = self.foco_construccion
+                
+                w_foco, h_foco = _tam(f_bn)
+                coords = [(f_x+i, f_y+j) for i in range(w_foco) for j in range(h_foco)]
+                
+                # Si el foco no es el recurso más crítico, LO DESTRUIMOS.
+                if f_bn != target_bn:
+                    self.foco_construccion = None
                 else:
-                    self.last_pos = (hx,hy)
-                    self.rep_count = 0
-                if self.rep_count > 10:
-                    self.blacklist.add((hx,hy))
-                    self.rep_count = 0
-                    help_bn,hx,hy = self._check_survival()
-            if help_bn and hx is not None:
-                bn=help_bn
-                tx,ty=hx,hy
-                ai=IDX[bn]; u,v=float(hx)/S,float(hy)/S
-                ok = self._act_fast(bn,tx,ty,force_replace=True)
-            elif help_bn:
-                ai,u,v,_=self.agent.act(obs); bn=ACTION_SET[ai]
-                x0,y0,x1,y1=_get_chunk_rect(self.chunk_idx)
-                tx=x0+int(u*(x1-x0)); ty=y0+int(v*(y1-y0))
-                tx=max(x0,min(x1-1,tx)); ty=max(y0,min(y1-1,ty))
-                ok = self._act_fast(bn,tx,ty,force_replace=False)
-            else:
-                ai,u,v,_=self.agent.act(obs); bn=ACTION_SET[ai]
-                x0,y0,x1,y1=_get_chunk_rect(self.chunk_idx)
-                tx=x0+int(u*(x1-x0)); ty=y0+int(v*(y1-y0))
-                tx=max(x0,min(x1-1,tx)); ty=max(y0,min(y1-1,ty))
-                ok = self._act_fast(bn,tx,ty,force_replace=False)
-            prev=cur_sc
-            curr=self._calc_complex_score()
-            r=curr-prev
-            if not ok: r -= 0.5 
-            if self._check_unlock_conditions(): 
-                if self.chunk_idx<(S//CHUNK_SIZE)**2-1:
-                    self.chunk_idx+=1; r+=100.0
-                    self.blacklist.clear()
-            self.buf_o.append(obs); self.buf_a.append(ai); self.buf_r.append(r)
-            self.buf_u.append(float(u)); self.buf_v.append(float(v))
-            if len(self.buf_r)>=128:
-                adv=jnp.array(self.buf_r)-self.baseline
-                self.agent.update(jnp.stack(self.buf_o),jnp.array(self.buf_a),jnp.array(self.buf_u),jnp.array(self.buf_v),adv,lr=2e-4)
-                self.baseline=0.95*self.baseline+0.05*float(jnp.mean(jnp.array(self.buf_r)))
-                self.buf_o.clear(); self.buf_a.clear(); self.buf_r.clear(); self.buf_u.clear(); self.buf_v.clear()
-                if self.steps%1000==0: self.agent.save('ml_data/policy/latest.ckpt')
+                    
+                    if (f_x, f_y) in self.board:
+                        v = self.board[(f_x,f_y)]
+                        real = v[0] if isinstance(v,tuple) else str(v)
+                        
+                        if real == f_bn:
+                            hizo_algo = self._verificar_capas_y_resolver(f_bn, f_x, f_y)
+                            
+                            if hizo_algo:
+                                self.steps += 1
+                                
+                            # ESCAPE CRÍTICO 1: Si falló al resolver la capa, forzamos la liberación del foco.
+                            elif not hizo_algo and not R.es_activo(self.board, f_bn, coords):
+                                self.foco_construccion = None
+                                # Marcar como fallido para no volver a intentar en el mismo lugar
+                                self.blacklist.add((f_x, f_y))
+                                
+                            # Si el edificio ya está completo y activo, liberar el foco.
+                            if R.es_activo(self.board, f_bn, coords):
+                                 self.foco_construccion = None
+                            
+                        else:
+                            self.foco_construccion = None
+                    else:
+                        hizo_algo = self._verificar_capas_y_resolver(f_bn, f_x, f_y)
+                        if hizo_algo: 
+                             self.steps += 1
+                        # ESCAPE CRÍTICO 2: Si falló al resolver la capa al inicio, liberamos el foco.
+                        elif not hizo_algo:
+                            self.foco_construccion = None
+                            # Marcar como fallido para no volver a intentar en el mismo lugar
+                            self.blacklist.add((f_x, f_y))
+
+            # Si se realizó una acción, terminamos el frame para re-diagnosticar en el siguiente.
+            if hizo_algo:
+                return
+
+            # 3. ESTRATEGIA 1: OPORTUNIDAD (Busca espacio para el target_bn actual)
+            if self.foco_construccion is None:
+                # Limpiar blacklist si cambiamos de target_bn
+                if self.objetivo_actual != target_bn:
+                     self.blacklist.clear()
+                     
+                found, ox, oy = self._buscar_oportunidad_existente(target_bn)
+                if found and (ox, oy) not in self.blacklist:
+                    self.foco_construccion = (target_bn, ox, oy)
+                    self._verificar_capas_y_resolver(target_bn, ox, oy)
+                    self.steps += 1
+                    return # Acción realizada, terminamos el frame.
+
+            # 4. ESTRATEGIA 2: EXPANSIÓN (HEATMAP)
+            if self.foco_construccion is None:
+                rect = _get_chunk_rect(self.chunk_idx)
+                desire_map = self.analista_terreno.generar_mapa_tactico(
+                    target_bn, self.occ, self.jax_maps, rect
+                )
+                self.heatmap_cache = desire_map
+                
+                np_desire = np.array(desire_map)
+                flat_indices = np.argsort(np_desire.ravel())[::-1]
+                
+                encontrado = False
+                
+                # AUMENTO DE VELOCIDAD DE DESCARTE (100)
+                for idx in flat_indices[:100]: 
+                    bx, by = divmod(int(idx), S)
+                    
+                    # Ignorar coordenadas fallidas
+                    if (bx, by) in self.blacklist:
+                        continue 
+
+                    # Chequeo de deseo (solo si no es un recurso crítico)
+                    if np_desire[bx, by] < 0.01 and target_bn == 'residencia': break
+                    
+                    # Intentar ubicación de capas
+                    hizo = self._verificar_capas_y_resolver(target_bn, bx, by)
+                    if hizo:
+                        self.foco_construccion = (target_bn, bx, by)
+                        encontrado = True
+                        break
+                    else:
+                        # Si falla al intentar resolver la capa, la coordenada se añade a la blacklist en el escape.
+                        pass
+                
+                if not encontrado and not self.foco_construccion:
+                     self.stuck_steps += 1 
+                     if self._check_unlock_conditions(): 
+                         if self.stuck_steps > 30: 
+                            if self.chunk_idx<(S//CHUNK_SIZE)**2-1:
+                                self.chunk_idx+=1
+                                self.blacklist.clear() # Limpiar blacklist al cambiar de lote
+                                self.stuck_steps = 0 
+                                print(f"[AUTO] >>> LOTE {self.chunk_idx} DESBLOQUEADO <<<")
+
             self.steps+=1
-            if self.steps%100==0:
-                print(f"[AUTO] St:{self.steps} Lote:{self.chunk_idx} Sc:{curr:.1f}")
+            if self.steps%50==0:
+                print(f"[AUTO] St:{self.steps} Lote:{self.chunk_idx} Obj:{target_bn}")
 
     def _check_unlock_conditions(self):
         res,jobs,ind,com,bal,active,total=self._get_full_stats()
-        if total==0: return False
-        if active/total < 0.99: return False
-        for val in bal.values():
-            if val < 0: return False
-        if res < 50: return False
-        if abs(res - jobs) > (res * 0.05): return False
-        if jobs > 0:
-            ind_ratio = ind / jobs
-            if not (0.30 <= ind_ratio <= 0.36): return False
-        else: return False
+        
+        # CRÍTICO: No desbloquear si hay déficit de recursos.
+        if bal['energia'] < 0: return False
+        if bal['agua'] < 0: return False
+        if bal['comida'] < 0: return False
+        if bal['basura'] < 0: return False
+
+        lote_capacity = CHUNK_SIZE * CHUNK_SIZE
+        capacity_total = (self.chunk_idx + 1) * lote_capacity
+        if active < capacity_total * 0.75: 
+            return False 
+
+        if res > 10 and jobs < res * 0.9: 
+             return False
+        
         return True
 
     def _run(self):

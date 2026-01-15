@@ -1,3 +1,4 @@
+# estadisticas.py
 import math,io,capnp,jax.numpy as jnp
 from jax import jit
 import edificios
@@ -63,8 +64,78 @@ class StatsProcessor:
         try:return s.strip().lower()
         except Exception:return str(s).lower()
 
+    # --- PROCESAMIENTO EN RAM (NUEVO) ---
+    def process_ram(self, board_dict, inactive_set=None):
+        if inactive_set is None: inactive_set = set()
+        stats = sc.Stats.new_message()
+        
+        L_res=[]; L_emp=[]; L_ind=[]; L_com=[]; L_amb=[]; L_fel=[]
+        L_enr=[]; L_agu=[]; L_comi=[]; L_bas=[]
+        enrT=aguT=comT=basT=0
+        
+        for pos, val in board_dict.items():
+            if isinstance(val, tuple):
+                bn = val[0].lower()
+                iid = val[1]
+                if iid in inactive_set: continue
+            else:
+                bn = str(val).lower()
+                if pos in inactive_set: continue
+
+            if bn not in ED_DATA: continue
+            
+            d = ED_DATA[bn]
+            
+            if d.energia > 0: enrT += d.energia
+            if d.agua > 0:    aguT += d.agua
+            if d.comida > 0:  comT += d.comida
+            if d.basura > 0:  basT += d.basura
+
+            L_res.append(d.residentes)
+            L_emp.append(d.empleos)
+            L_fel.append(d.felicidad)
+            L_amb.append(d.ambiente)
+            
+            L_enr.append(d.energia if d.energia <= 0 else 0)
+            L_agu.append(d.agua if d.agua <= 0 else 0)
+            L_comi.append(d.comida if d.comida <= 0 else 0)
+            L_bas.append(d.basura if d.basura <= 0 else 0)
+
+            t_str = str(getattr(d.tipo, 'value', d.tipo)).lower()
+            L_ind.append(1 if 'industria' in t_str else 0)
+            L_com.append(1 if 'comercio' in t_str else 0)
+
+        if L_res:
+            RES=jnp.array(L_res,dtype=jnp.int32)
+            EMP=jnp.array(L_emp,dtype=jnp.int32)
+            IND=jnp.array(L_ind,dtype=jnp.int32)
+            COM=jnp.array(L_com,dtype=jnp.int32)
+            AMB=jnp.array(L_amb,dtype=jnp.int32)
+            FEL=jnp.array(L_fel,dtype=jnp.int32)
+            
+            tr,te,ti,tc,pind,pcom,des,eco,felT=_reduce_stats(RES,EMP,IND,COM,AMB,FEL)
+            
+            stats.totalResidentes=int(tr); stats.totalEmpleos=int(te)
+            stats.totalEmpleosIndustria=int(ti); stats.totalEmpleosComercio=int(tc)
+            stats.porcentajeIndustria=float(pind); stats.porcentajeComercio=float(pcom)
+            stats.desequilibrioLaboral=int(des)
+            stats.ecologiaTotal=int(eco); stats.felicidadTotal=int(felT)
+            
+            stats.energiaUsada=int(jnp.sum(jnp.array(L_enr)))
+            stats.aguaUsada=int(jnp.sum(jnp.array(L_agu)))
+            stats.comidaUsada=int(jnp.sum(jnp.array(L_comi)))
+            stats.basuraUsada=int(jnp.sum(jnp.array(L_bas)))
+        else:
+            stats.totalResidentes=0; stats.totalEmpleos=0
+            stats.energiaUsada=0; stats.aguaUsada=0
+            stats.comidaUsada=0; stats.basuraUsada=0
+
+        stats.energiaTotal=enrT; stats.aguaTotal=aguT
+        stats.comidaTotal=comT; stats.basuraTotal=basT
+        return stats
+
+    # --- PROCESAMIENTO EN DISCO (LEGACY) ---
     def process(self):
-        KNOWN=set(ED_DATA.keys())|{'suelo','decoracion'}
         self.seen_hashes.clear()
         stats=sc.Stats.new_message()
         counts={}
@@ -94,52 +165,29 @@ class StatsProcessor:
                 fel_val=int(defi.felicidad)
                 amb_val=int(defi.ambiente)
                 
-                e_val=int(defi.energia)
-                if e_val>0:enr_cap=e_val;e_use=0
-                else:enr_cap=0;e_use=e_val
+                e_val=int(defi.energia); enr_cap=e_val if e_val>0 else 0; e_use=e_val if e_val<=0 else 0
+                a_val=int(defi.agua);    agu_cap=a_val if a_val>0 else 0; a_use=a_val if a_val<=0 else 0
+                c_val=int(defi.comida);  com_cap=c_val if c_val>0 else 0; c_use=c_val if c_val<=0 else 0
+                b_val=int(defi.basura);  bas_cap=b_val if b_val>0 else 0; b_use=b_val if b_val<=0 else 0
                 
-                a_val=int(defi.agua)
-                if a_val>0:agu_cap=a_val;a_use=0
-                else:agu_cap=0;a_use=a_val
-                
-                c_val=int(defi.comida)
-                if c_val>0:com_cap=c_val;c_use=0
-                else:com_cap=0;c_use=c_val
-                
-                b_val=int(defi.basura)
-                if b_val>0:bas_cap=b_val;b_use=0
-                else:bas_cap=0;b_use=b_val
-                
-                tipo_str=str(getattr(defi.tipo,'value',defi.tipo)).lower()
-                is_ind=1 if 'industria' in tipo_str else 0
-                is_com=1 if 'comercio' in tipo_str else 0
-                
+                t_str=str(getattr(defi.tipo,'value',defi.tipo)).lower()
+                is_ind=1 if 'industria' in t_str else 0
+                is_com=1 if 'comercio' in t_str else 0
             else:
-                a=c.atributos
-                t=self._canon(c.tipo)
-                res_val=a.residentes
-                emp_val=a.empleos
-                fel_val=a.felicidad
-                amb_val=a.ambiente
-                e_use=a.energia
-                a_use=a.agua
-                c_use=a.comida
-                b_use=a.basura
+                a=c.atributos; t=self._canon(c.tipo)
+                res_val=a.residentes; emp_val=a.empleos
+                fel_val=a.felicidad; amb_val=a.ambiente
+                e_use=a.energia; a_use=a.agua; c_use=a.comida; b_use=a.basura
                 enr_cap=agu_cap=com_cap=bas_cap=0
                 is_ind=1 if t=='industria' else 0
                 is_com=1 if t=='comercio' else 0
 
             L_hash.append(h&4294967295)
-            L_res.append(res_val)
-            L_emp.append(emp_val)
-            L_ind.append(is_ind)
-            L_com.append(is_com)
-            L_amb.append(amb_val)
-            L_fel.append(fel_val)
-            L_enr.append(e_use) 
-            L_agu.append(a_use)
-            L_comi.append(c_use)
-            L_bas.append(b_use)
+            L_res.append(res_val); L_emp.append(emp_val)
+            L_ind.append(is_ind); L_com.append(is_com)
+            L_amb.append(amb_val); L_fel.append(fel_val)
+            L_enr.append(e_use); L_agu.append(a_use)
+            L_comi.append(c_use); L_bas.append(b_use)
             
             iid=h>>8&0xffffffffffffffff
             if iid not in seen_iids:
@@ -149,7 +197,6 @@ class StatsProcessor:
                     if d.agua>0:aguT+=d.agua
                     if d.comida>0:comT+=d.comida
                     if d.basura>0:basT+=d.basura
-                
                 counts[bn]=counts.get(bn,0)+1
                 seen_iids.add(iid)
 
@@ -167,7 +214,6 @@ class StatsProcessor:
             B=jnp.array(L_bas,dtype=jnp.int32)
             
             ACTIVE=jnp.ones_like(RES,dtype=bool)
-
             RES=RES*ACTIVE;EMP=EMP*ACTIVE;FEL=FEL*ACTIVE
             
             tr,te,ti,tc,pind,pcom,des,eco,felT=_reduce_stats(RES,EMP,IND,COM,AMB,FEL)
@@ -176,22 +222,14 @@ class StatsProcessor:
             des=int(des);eco=int(eco);felT=int(felT)
             pind=float(pind);pcom=float(pcom)
             
-            enrU=int(jnp.sum(E)) 
-            aguU=int(jnp.sum(A))
-            comU=int(jnp.sum(C))
-            basU=int(jnp.sum(B))
-            
+            enrU=int(jnp.sum(E)); aguU=int(jnp.sum(A))
+            comU=int(jnp.sum(C)); basU=int(jnp.sum(B))
         else:
-            tr=te=ti=tc=des=eco=felT=0
-            pind=pcom=.0
-            enrU=aguU=comU=basU=0
+            tr=te=ti=tc=des=eco=felT=0; pind=pcom=.0; enrU=aguU=comU=basU=0
 
-        stats.totalResidentes=tr
-        stats.totalEmpleos=te
-        stats.totalEmpleosIndustria=ti
-        stats.totalEmpleosComercio=tc
-        stats.porcentajeIndustria=pind
-        stats.porcentajeComercio=pcom
+        stats.totalResidentes=tr; stats.totalEmpleos=te
+        stats.totalEmpleosIndustria=ti; stats.totalEmpleosComercio=tc
+        stats.porcentajeIndustria=pind; stats.porcentajeComercio=pcom
         stats.desequilibrioLaboral=des
         
         try:stats.ec=math.isclose(ti/(te or 1),1/3)and math.isclose(tc/(te or 1),2/3)and abs(des)<=100
@@ -202,24 +240,4 @@ class StatsProcessor:
         stats.comidaUsada=comU;stats.comidaTotal=comT
         stats.basuraUsada=basU;stats.basuraTotal=basT
         
-        stats.ecologiaTotal=eco
-        stats.felicidadTotal=felT
-        
-        lst=stats.init('cantidadEdificios',len(counts))
-        for(i,(name,qty))in enumerate(counts.items()):
-            e=lst[i];e.nombre=name;e.cantidad=qty
-            
         return stats
-
-if __name__=='__main__':
-    st=StatsProcessor().process()
-    out=[f"Residentes: {st.totalResidentes}",f"Empleos: {st.totalEmpleos}",
-         f"  Industria: {st.totalEmpleosIndustria} ({st.porcentajeIndustria:.1f}%)",
-         f"  Comercio: {st.totalEmpleosComercio} ({st.porcentajeComercio:.1f}%)",
-         f"Desbalance: {st.desequilibrioLaboral}",
-         f"Energía R/T: {st.energiaUsada}/{st.energiaTotal}",
-         f"Agua R/T: {st.aguaUsada}/{st.aguaTotal}",
-         f"Comida R/T: {st.comidaUsada}/{st.comidaTotal}",
-         f"Basura R/T: {st.basuraUsada}/{st.basuraTotal}",
-         f"Ecología: {st.ecologiaTotal}",f"Felicidad: {st.felicidadTotal}"]
-    print('\n'.join(out))

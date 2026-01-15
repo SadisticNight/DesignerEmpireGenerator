@@ -10,14 +10,16 @@ def generar_datos():
     m = c.Mapa.new_message()
     cs = m.init("celdas", T)
 
-    # → Asignación masiva sin comprensiones con efectos (evita lista temporal) ni lambdas
-    #    Minimiza overhead: cache de atributos, servicios y funciones builtin
+    # → Asignación masiva sin comprensiones con efectos
     rng = range
     div = divmod
     for i in rng(T):
         x, y = div(i, N)
         cel = cs[i]
-        cel.x = x; cel.y = y; cel.hash = ""; cel.edificio = ""; cel.tipo = ""
+        
+        # --- CORRECCION AQUI: hash debe ser 0 (numero), no "" (texto) ---
+        cel.x = x; cel.y = y; cel.hash = 0; cel.edificio = ""; cel.tipo = ""
+        
         at = cel.atributos; sv = cel.servicios
         # atributos
         at.energia = 0; at.agua = 0; at.basura = 0; at.comida = 0
